@@ -27,7 +27,16 @@ struct Session: Codable, Equatable, Sendable {
 }
 
 /// A finished focus session whose line waits for an energy rating.
-struct FinishingSession: Equatable, Sendable {
+struct FinishingSession: Codable, Equatable, Sendable {
     var day: LogDay
     var entry: LogEntry
+}
+
+/// Saved to `active-session.json` on every state change and every 30 s while running.
+struct RecoveryRecord: Codable, Equatable, Sendable {
+    var session: Session?
+    var finishing: FinishingSession?
+    var taskText: String
+    /// When this record was saved. A recovered session is logged as ending here.
+    var heartbeat: Date
 }

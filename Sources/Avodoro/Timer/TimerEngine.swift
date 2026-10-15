@@ -10,6 +10,8 @@ import Observation
 final class TimerEngine {
     enum Phase: Equatable, Sendable {
         case idle, running, paused, finishing
+        /// After a crash: asking whether to log the unfinished session.
+        case recovering
     }
 
     struct Configuration: Equatable, Sendable {
@@ -25,6 +27,8 @@ final class TimerEngine {
     var configuration: Configuration
     private(set) var session: Session?
     private(set) var finishing: FinishingSession?
+    /// An unfinished session found at launch, waiting for "Log it" or "Discard".
+    private(set) var recovered: RecoveryRecord?
     private(set) var selectedType: SessionType = .focus
     private(set) var selectedMinutes = TimerEngine.defaultFocusMinutes
     /// Editable while a session runs; the logged description is the text when the session finishes.
@@ -38,6 +42,8 @@ final class TimerEngine {
     @ObservationIgnored var onComplete: (@MainActor (SessionType, String) -> Void)?
     /// Counts sessions whose time ran out. The pit's completion motion watches it.
     private(set) var completionCount = 0
+    /// Called after every state change, so the active session can be saved for crash recovery.
+    @ObservationIgnored var onStateChange: (@MainActor () -> Void)?
 
     @ObservationIgnored private let clock: any Clock
     @ObservationIgnored private let timeZone: () -> TimeZone
@@ -63,6 +69,7 @@ final class TimerEngine {
 
     var phase: Phase {
         if finishing != nil { return .finishing }
+        if recovered != nil { return .recovering }
         switch session?.state {
         case .running: return .running
         case .paused: return .paused
@@ -109,6 +116,7 @@ final class TimerEngine {
         switch phase {
         case .running, .paused: return
         case .finishing: commitFinishing(energy: nil)
+        case .recovering: logRecovered()
         case .idle: break
         }
         selectsTaskTextOnNextFocus = false
@@ -122,6 +130,7 @@ final class TimerEngine {
             state: .running(endDate: endDate)
         )
         scheduleTimeUp(at: endDate)
+        changed()
     }
 
     func pause() {
@@ -130,6 +139,7 @@ final class TimerEngine {
         session.state = .paused(remaining: max(0, endDate.timeIntervalSince(now)), since: now)
         self.session = session
         cancelTimeUp()
+        changed()
     }
 
     func resume() {
@@ -140,6 +150,7 @@ final class TimerEngine {
         session.state = .running(endDate: endDate)
         self.session = session
         scheduleTimeUp(at: endDate)
+        changed()
     }
 
     func togglePause() {
@@ -153,6 +164,7 @@ final class TimerEngine {
         let actual = session.plannedSeconds - session.remaining(at: now)
         guard actual >= configuration.discardThreshold else {
             self.session = nil
+            changed()
             return
         }
         var paused = session.pausedSeconds
@@ -160,6 +172,15 @@ final class TimerEngine {
             paused += now.timeIntervalSince(since)
         }
         finish(status: .stopped, end: now, actualSeconds: actual, pausedSeconds: paused)
+        changed()
+    }
+
+    /// Drops a running or paused session without logging it (Quit → Discard).
+    func discard() {
+        guard session != nil else { return }
+        cancelTimeUp()
+        session = nil
+        changed()
     }
 
     /// Pauses a running session. Never resumes automatically.
@@ -179,6 +200,7 @@ final class TimerEngine {
         finish(status: .completed, end: endDate, actualSeconds: session.plannedSeconds,
                pausedSeconds: session.pausedSeconds)
         completionCount += 1
+        changed()
         onComplete?(session.type, description)
     }
 
@@ -226,6 +248,7 @@ final class TimerEngine {
         finishing = nil
         pending.entry.energy = energy
         write(day: pending.day, entry: pending.entry)
+        changed()
     }
 
     private func write(day: LogDay, entry: LogEntry) {
@@ -248,6 +271,83 @@ final class TimerEngine {
             taskText = lastFocusText
             selectsTaskTextOnNextFocus = !taskText.isEmpty
         }
+    }
+
+    // MARK: Recovery
+
+    /// What to save so the session survives a crash; nil when there is nothing to lose.
+    func snapshot(heartbeat: Date) -> RecoveryRecord? {
+        if let recovered { return recovered }
+        guard session != nil || finishing != nil else { return nil }
+        return RecoveryRecord(session: session, finishing: finishing, taskText: taskText, heartbeat: heartbeat)
+    }
+
+    /// At launch. A session that had already finished (energy question open) is written at once;
+    /// an unfinished one waits for `logRecovered()` or `discardRecovered()`.
+    func restore(_ record: RecoveryRecord) {
+        guard phase == .idle else { return }
+        taskText = record.taskText
+        if let finishing = record.finishing {
+            write(day: finishing.day, entry: finishing.entry)
+        } else if record.session != nil {
+            recovered = record
+        }
+        changed()
+    }
+
+    /// Logs the recovered session as `stopped`, ending at its last heartbeat.
+    func logRecovered() {
+        guard let record = recovered else { return }
+        recovered = nil
+        if let (day, entry) = Self.recoveredEntry(record, fallbackTimeZone: timeZone()) {
+            log(day, entry)
+        }
+        changed()
+    }
+
+    func discardRecovered() {
+        guard recovered != nil else { return }
+        recovered = nil
+        changed()
+    }
+
+    /// Local start time of the recovered session, such as "14:05".
+    var recoveredStartTime: String? {
+        guard let session = recovered?.session else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: session.timeZone) ?? timeZone()
+        let parts = calendar.dateComponents([.hour, .minute], from: session.startDate)
+        return LogTime(hour: parts.hour ?? 0, minute: parts.minute ?? 0).string
+    }
+
+    static func recoveredEntry(_ record: RecoveryRecord, fallbackTimeZone: TimeZone) -> (day: LogDay, entry: LogEntry)? {
+        guard let session = record.session else { return nil }
+        let heartbeat = max(record.heartbeat, session.startDate)
+        var paused = session.pausedSeconds
+        let remaining: TimeInterval
+        switch session.state {
+        case .running(let endDate):
+            remaining = max(0, endDate.timeIntervalSince(heartbeat))
+        case .paused(let pausedRemaining, let since):
+            remaining = pausedRemaining
+            paused += max(0, heartbeat.timeIntervalSince(since))
+        }
+        return LogFormat.makeEntry(
+            start: session.startDate,
+            end: heartbeat,
+            timeZone: TimeZone(identifier: session.timeZone) ?? fallbackTimeZone,
+            description: record.taskText,
+            type: session.type,
+            plannedMinutes: session.plannedMinutes,
+            actualSeconds: min(max(0, session.plannedSeconds - remaining), session.plannedSeconds),
+            pausedSeconds: paused,
+            status: .stopped,
+            energy: nil
+        )
+    }
+
+    private func changed() {
+        onStateChange?()
     }
 
     // MARK: Scheduling

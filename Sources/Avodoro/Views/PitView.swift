@@ -79,7 +79,7 @@ struct PitView: View {
                     .foregroundStyle(Palette.textOnPit)
             }
             .offset(y: 7 * scale) // keeps the digits where they sit while running
-        case .idle, .running:
+        case .idle, .running, .recovering:
             countdown
         }
     }
@@ -95,7 +95,7 @@ struct PitView: View {
 
     private func tap() {
         switch engine.phase {
-        case .idle: engine.start()
+        case .idle, .recovering: engine.start()
         case .running, .paused: engine.togglePause()
         case .finishing: break
         }
@@ -103,7 +103,7 @@ struct PitView: View {
 
     private var accessibilityLabel: String {
         switch engine.phase {
-        case .idle:
+        case .idle, .recovering:
             let kind = engine.selectedType == .focus ? "focus" : "break"
             return "Start \(engine.selectedMinutes) minute \(kind) session"
         case .running: return "Pause"

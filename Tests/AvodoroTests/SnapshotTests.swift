@@ -16,7 +16,7 @@ struct SnapshotTests {
     static let sizes: [(name: String, scale: CGFloat)] = [("small", 0.8), ("medium", 1), ("large", 1.25)]
 
     enum State: String, CaseIterable {
-        case idle, running0, running50, running90, paused, finishing, warning, warningReason, firstRun, sixPresets
+        case idle, running0, running50, running90, paused, finishing, warning, warningReason, firstRun, sixPresets, recovering
     }
 
     @Test(arguments: State.allCases)
@@ -50,6 +50,13 @@ struct SnapshotTests {
             warning = "No log folder chosen."
         case .sixPresets:
             engine.select(minutes: 120)
+        case .recovering:
+            let start = clock.now.addingTimeInterval(5 * 60)
+            engine.restore(RecoveryRecord(
+                session: Session(type: .focus, plannedMinutes: 25, startDate: start, timeZone: "Europe/Rome",
+                                 state: .running(endDate: start.addingTimeInterval(25 * 60))),
+                finishing: nil, taskText: "Write blog post draft", heartbeat: start.addingTimeInterval(600)
+            ))
         }
 
         for size in Self.sizes {

@@ -114,7 +114,7 @@ final class PanelController {
     private func makeContextMenu() -> NSMenu {
         let menu = NSMenu()
         switch engine.phase {
-        case .idle:
+        case .idle, .recovering:
             menu.addItem(ActionMenuItem("Start") { [engine] in engine.start() })
         case .running:
             menu.addItem(ActionMenuItem("Pause") { [engine] in engine.pause() })

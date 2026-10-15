@@ -10,8 +10,18 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 
 ## Current status
 
-- Milestone: 7 (end of session) done. 84 tests pass.
-- M7 works:
+- Milestone: 8 (robustness) done. All eight milestones are built. 95 tests pass.
+- M8 works:
+  - `SystemEvents` (`Support/`): `NSWorkspace.willSleepNotification` → pause; `com.apple.screenIsLocked` → pause if the setting is on; unlock is only logged. Never resumes.
+  - Crash recovery: `SessionRecorder` saves `TimerEngine.snapshot(heartbeat:)` to `active-session.json` on every state change (`onStateChange`) and every 30 s while running; idle deletes the file. `RecoveryRecord` = session, finishing line, task text, heartbeat.
+  - On launch a record puts the engine in the new `.recovering` phase: the avocado asks "Unfinished session from 14:05. Log it or discard?". Log it → `stopped`, ending at the heartbeat, actual = planned − remaining then, open pause counted. Starting a new session instead logs the old one first (same rule as the energy picker). A record that had already finished (energy question open) is written at launch without asking.
+  - Quit during a running/paused session: alert "Stop and log this session?" with Stop and log / Discard / Cancel. Quit during the energy question writes the line without energy. Quit while recovering keeps the file, so it asks again next launch. Quitting always waits (`.terminateLater`) until pending writes finish. On log out / shut down (`willPowerOffNotification`) it stops and logs without an alert.
+- To test by hand for M8:
+  - Start a session and lock the screen (⌃⌘Q): unlocked, the avocado is paused and stays paused. Same after closing the lid / sleeping.
+  - Start a session, wait over 30 s, then `pkill -9 -x Avodoro` and `make run`: the avocado asks about the unfinished session. Log it → a `stopped` line ending at the last heartbeat (up to 30 s before the kill). Repeat with Discard → no line.
+  - Quit from the menu during a session: Stop and log writes a `stopped` line; Discard writes nothing; Cancel keeps the session running.
+  - If the lock pause never happens, run `log show --info --predicate 'subsystem == "com.example.avodoro"' --last 10m` and look for "Screen locked"; if it's missing, the undocumented notification doesn't arrive on this macOS. Tell me rather than working around it.
+- M7 (end of session):
   - `CompletionAlerts` (`App/`): on time up (never on Stop) plays the chosen system sound and, if enabled, posts a notification ("Focus session done" + the task, or "Break is over" / "Ready to focus?"). Permission is requested at the first session end, in a `Task`; any failure is logged (`category == "app"`) and ignored, so sound and animation still happen. The notification has no sound of its own.
   - `TimerEngine.onComplete` now passes `(type, taskText)` captured before the line is written; `completionCount` counts time-ups.
   - Pit completion motion: `keyframeAnimator` bounce 1 → 1.12 → 0.96 → 1 (0.4 s), or an opacity fade with Reduce Motion.
@@ -57,7 +67,7 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 - M2: `LogFormat`, `PendingQueue` (stores structured `{day, entry}`; undecodable lines kept), `LogWriter` actor (flush before write, never creates the folder, outcome `.written` / `.queued` / `.lost`). Known limitation: if the queue file can't be rewritten after a flush, lines may be written twice (chosen over losing them).
 - M1: XcodeGen project, Makefile, menu bar, floating `AvocadoPanel`. Drag via `DragHandleNSView` under the skin (`hitTest` only on the skin band, `performDrag`), chosen over `isMovableByWindowBackground` because SwiftUI in `NSHostingView` doesn't reliably report `mouseDownCanMoveWindow`.
 - Known gaps (by plan): context menu, `⌘.`, selecting the task text after a break, position memory, sizes (M5); Settings window and first-run state (M6); sound, notification, bounce (M7); sleep/lock observers, recovery, quit confirmation (M8).
-- Next: milestone 8, robustness: sleep and lock pause, crash recovery, quit confirmation.
+- Next: no milestones left. Remaining work is the hand-test lists below, then fixes from what they find.
 - Hand-tested 2026-10-15 (M1; one desktop, three displays): floating, full-screen apps, drag by skin only, Show/Hide, Settings in front, Quit all pass. Clicks on the transparent corners do **not** pass through (accepted for now). Not yet tested: Spaces, moving between displays.
 - Hand-tested M5 on 2026-10-16: position memory across relaunch (pass); right-click menu and its Settings… (pass, so `openSettings` works from the panel's `NSHostingView`). Bug found and fixed: after Return the task text stayed selected and the next keys replaced it; `@FocusState = false` didn't end editing in the panel, now `makeFirstResponder(nil)` does, after Return and when a session starts or resumes. Still to test: the Return fix, `⌘.` (Command + period key), size, selection after a break, display disconnect.
 - To test by hand for M5:

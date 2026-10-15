@@ -376,6 +376,108 @@ final class TimerEngineTests {
         #expect(engine.taskText == "Refactor parser") // restored after the break
     }
 
+    // MARK: Recovery
+
+    /// A record as the recorder would have saved it `minutesIn` after a 09:00 start.
+    func runningRecord(minutesIn: Double, planned: Int = 25, text: String = "Write report") -> RecoveryRecord {
+        let start = clock.now
+        let session = Session(
+            type: .focus, plannedMinutes: planned, startDate: start, timeZone: "Europe/Rome",
+            state: .running(endDate: start.addingTimeInterval(TimeInterval(planned * 60)))
+        )
+        return RecoveryRecord(session: session, finishing: nil, taskText: text,
+                              heartbeat: start.addingTimeInterval(minutes(minutesIn)))
+    }
+
+    @Test func recoveredRunningSessionLogsStoppedAtHeartbeat() {
+        let record = runningRecord(minutesIn: 12.2)
+        clock.advance(by: minutes(120)) // relaunched much later
+        engine.restore(record)
+        #expect(engine.phase == .recovering)
+        #expect(engine.recoveredStartTime == "09:00")
+        #expect(engine.taskText == "Write report")
+
+        engine.logRecovered()
+        #expect(engine.phase == .idle)
+        #expect(LogFormat.format(lines[0].entry, fileTimeZone: "Europe/Rome")
+            == "- 09:00-09:12 Write report [type:: focus] [planned:: 25] [actual:: 12] [status:: stopped]")
+    }
+
+    @Test func recoveredPausedSessionCountsOpenPause() {
+        let start = clock.now
+        let session = Session(
+            type: .focus, plannedMinutes: 25, startDate: start, timeZone: "Europe/Rome",
+            state: .paused(remaining: minutes(17), since: start.addingTimeInterval(minutes(10))),
+            pausedSeconds: minutes(2)
+        )
+        engine.restore(RecoveryRecord(session: session, finishing: nil, taskText: "x",
+                                      heartbeat: start.addingTimeInterval(minutes(14))))
+        engine.logRecovered()
+        #expect(lines[0].entry.actual == 8)
+        #expect(lines[0].entry.paused == 6)
+        #expect(lines[0].entry.end == LogTime(hour: 9, minute: 14))
+    }
+
+    @Test func discardRecoveredLogsNothing() {
+        engine.restore(runningRecord(minutesIn: 5))
+        engine.discardRecovered()
+        #expect(engine.phase == .idle)
+        #expect(lines.isEmpty)
+        #expect(engine.snapshot(heartbeat: clock.now) == nil)
+    }
+
+    @Test func startWhileRecoveringLogsTheOldSessionFirst() {
+        engine.restore(runningRecord(minutesIn: 5))
+        engine.start()
+        #expect(lines.count == 1)
+        #expect(lines[0].entry.status == .stopped)
+        #expect(engine.phase == .running)
+    }
+
+    @Test func finishedRecordIsWrittenOnRestore() {
+        startFocus()
+        clock.advance(by: minutes(25))
+        let record = engine.snapshot(heartbeat: clock.now)!
+        #expect(record.finishing != nil)
+
+        makeEngine()
+        engine.restore(record)
+        #expect(engine.phase == .idle)
+        #expect(lines.count == 1)
+        #expect(lines[0].entry.status == .completed)
+    }
+
+    @Test func discardDropsSessionWithoutLogging() {
+        startFocus()
+        clock.advance(by: minutes(10))
+        engine.discard()
+        #expect(engine.phase == .idle)
+        #expect(lines.isEmpty)
+        clock.advance(by: minutes(30))
+        #expect(completed.isEmpty) // time-up was cancelled
+    }
+
+    @Test func stateChangesAreReported() {
+        var changes = 0
+        engine.onStateChange = { changes += 1 }
+        startFocus()          // start
+        engine.pause()        // pause
+        engine.resume()       // resume
+        clock.advance(by: minutes(25)) // time up
+        engine.rate(energy: 3) // written
+        #expect(changes >= 5)
+        #expect(engine.snapshot(heartbeat: clock.now) == nil)
+    }
+
+    @Test func snapshotCarriesTheRunningSession() {
+        startFocus(text: "Draft")
+        clock.advance(by: minutes(3))
+        let record = engine.snapshot(heartbeat: clock.now)
+        #expect(record?.session == engine.session)
+        #expect(record?.taskText == "Draft")
+        #expect(record?.heartbeat == clock.now)
+    }
+
     // MARK: Wrong phases
 
     @Test func actionsInWrongPhasesAreNoOps() {

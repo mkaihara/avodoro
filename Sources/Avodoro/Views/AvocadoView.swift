@@ -54,7 +54,11 @@ struct AvocadoView: View {
                 .position(x: width * 0.5, y: height * 0.285)
             }
 
-            if engine.phase == .finishing {
+            if engine.phase == .recovering {
+                RecoveryPrompt(engine: engine, scale: scale)
+                    .frame(width: width * 0.56)
+                    .position(x: width * 0.5, y: height * 0.43)
+            } else if engine.phase == .finishing {
                 // Lower than the task band: the flesh is too narrow for the question higher up.
                 EnergyPicker(engine: engine, scale: scale)
                     .position(x: width * 0.5, y: height * 0.43)

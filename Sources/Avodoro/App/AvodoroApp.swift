@@ -36,7 +36,7 @@ private struct MenuBarLabel: View {
         case .running, .paused:
             Text(Countdown.string(engine.remaining(at: engine.now)))
                 .monospacedDigit()
-        case .idle, .finishing:
+        case .idle, .finishing, .recovering:
             Image(systemName: "leaf.fill")
         }
     }
@@ -56,7 +56,7 @@ private struct MenuContent: View {
         Divider()
 
         switch engine.phase {
-        case .idle, .finishing:
+        case .idle, .finishing, .recovering:
             Button("Start") { engine.start() }
         case .running:
             Button("Pause") { engine.pause() }
