@@ -37,4 +37,25 @@ struct AvocadoPanelTests {
         #expect(!AvocadoShape.skinContains(CGPoint(x: 120, y: 224), in: size))   // pit
         #expect(!AvocadoShape.skinContains(CGPoint(x: 2, y: 2), in: size))       // transparent corner
     }
+
+    func key(_ characters: String, _ modifiers: NSEvent.ModifierFlags) -> NSEvent {
+        NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+            windowNumber: panel.windowNumber, context: nil, characters: characters,
+            charactersIgnoringModifiers: characters, isARepeat: false, keyCode: 0
+        )!
+    }
+
+    @Test func commandPeriodStops() {
+        var count = 0
+        panel.onCommandPeriod = { count += 1 }
+        #expect(panel.performKeyEquivalent(with: key(".", .command)))
+        #expect(count == 1)
+    }
+
+    @Test func otherKeysAreNotCommandPeriod() {
+        #expect(!AvocadoPanel.isCommandPeriod(key(".", [])))
+        #expect(!AvocadoPanel.isCommandPeriod(key(",", .command)))
+        #expect(!AvocadoPanel.isCommandPeriod(key(".", [.command, .shift])))
+    }
 }

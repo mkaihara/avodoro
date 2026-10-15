@@ -29,6 +29,9 @@ final class TimerEngine {
     private(set) var selectedMinutes = TimerEngine.defaultFocusMinutes
     /// Editable while a session runs; the logged description is the text when the session finishes.
     var taskText = ""
+    /// Set after a break restores the previous task text, so the view selects it on the next focus
+    /// and typing replaces it.
+    private(set) var selectsTaskTextOnNextFocus = false
 
     /// Called when time is up, for sound, notification and the completion animation.
     @ObservationIgnored var onComplete: (@MainActor (SessionType) -> Void)?
@@ -91,6 +94,12 @@ final class TimerEngine {
         selectedMinutes = minutes
     }
 
+    /// Returns true once after a break restored the task text.
+    func consumeTaskTextSelection() -> Bool {
+        defer { selectsTaskTextOnNextFocus = false }
+        return selectsTaskTextOnNextFocus
+    }
+
     // MARK: Running
 
     func start() {
@@ -99,6 +108,7 @@ final class TimerEngine {
         case .finishing: commitFinishing(energy: nil)
         case .idle: break
         }
+        selectsTaskTextOnNextFocus = false
         let now = clock.now
         let endDate = now.addingTimeInterval(TimeInterval(selectedMinutes * 60))
         session = Session(
@@ -230,6 +240,7 @@ final class TimerEngine {
             selectedType = .focus
             selectedMinutes = lastFocusMinutes
             taskText = lastFocusText
+            selectsTaskTextOnNextFocus = !taskText.isEmpty
         }
     }
 

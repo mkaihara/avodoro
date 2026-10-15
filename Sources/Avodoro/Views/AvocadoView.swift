@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension EnvironmentValues {
@@ -7,7 +8,7 @@ extension EnvironmentValues {
 
 /// The floating avocado. Thin: it reads `TimerEngine` and calls its methods.
 struct AvocadoView: View {
-    static let baseSize = CGSize(width: 240, height: 320)
+    nonisolated static let baseSize = CGSize(width: 240, height: 320)
     static let presets = [5, 10, 15, 20]
 
     @Bindable var engine: TimerEngine
@@ -18,6 +19,7 @@ struct AvocadoView: View {
     /// The warning reason is drawn in the panel: system tooltips don't show while the app is
     /// inactive, and the panel never activates the app.
     @State var showsWarningReason = false
+    @FocusState private var taskFieldFocused: Bool
 
     private var width: CGFloat { Self.baseSize.width * scale }
     private var height: CGFloat { Self.baseSize.height * scale }
@@ -163,8 +165,20 @@ struct AvocadoView: View {
                             .allowsHitTesting(false)
                     }
                 }
+                .focused($taskFieldFocused)
                 .onSubmit {
                     if engine.phase == .idle { engine.start() }
+                }
+                .onChange(of: taskFieldFocused) { _, focused in
+                    guard focused, engine.consumeTaskTextSelection() else { return }
+                    // After the click has placed the caret, select everything so typing replaces it.
+                    DispatchQueue.main.async {
+                        NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil)
+                    }
+                }
+                .onChange(of: engine.phase) { old, new in
+                    // Once a session starts, stray keys should not keep editing the task.
+                    if old == .idle && new == .running { taskFieldFocused = false }
                 }
                 .accessibilityLabel("Task")
         }

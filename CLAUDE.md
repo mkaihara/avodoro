@@ -10,7 +10,14 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 
 ## Current status
 
-- Milestone: 4 (avocado view, wired to the engine) done. 61 tests pass. You can run real sessions now.
+- Milestone: 5 (panel details) done. 72 tests pass.
+- M5 works:
+  - Position memory: `setFrameAutosaveName("AvocadoPanel")`; on launch and when displays change (`didChangeScreenParametersNotification`), a panel with less than 40 × 40 pt on any screen moves to the bottom right of the main screen (`Window/PanelPlacement.swift`, pure and tested).
+  - Sizes: `AvocadoSize` (small 0.8, medium 1, large 1.25) read from the `UserDefaults` key `avocadoSize`; the panel follows in-process changes (M6's picker) by resizing around its centre, clamped to its screen. Until M6: `defaults write com.example.avodoro avocadoSize large` + restart.
+  - Context menu: built in AppKit in `AvocadoPanel.sendEvent` (right click or control-click anywhere, including the skin): Start / Pause or Resume, Stop / Settings… / Hide avocado.
+  - `⌘.` stops a session when the panel is key (`AvocadoPanel.performKeyEquivalent`).
+  - When a session starts, the task field loses focus. After a break, the restored task text is selected the next time you click the field. The view never takes focus by itself, so it can't steal typing from the app you're in.
+  - Unverified: Settings… in the context menu uses SwiftUI's `openSettings` captured from the panel's `NSHostingView`. If that does nothing, it's an API limitation to report, not to work around.
 - Log folder until M6: `defaults write com.example.avodoro logFolderPath "/path/to/folder"`, then restart the app. Without it, lines wait in `pending.jsonl` and the warning dot says so; they are written as soon as a folder is set.
 - M4 works:
   - `AvocadoShape` with tuned control points (the spec's starting path read as a pear): right shoulder to (0.85, 0.42) c1 (0.70, 0.00) c2 (0.77, 0.24); right belly to (0.50, 1.00) c1 (1.01, 0.78) c2 (0.95, 1.00); left side mirrored. Joins at y = 0.42 stay smooth (collinear controls). Skin is 6 % of the width (7 % looked heavy and squeezed the energy question).
@@ -26,9 +33,16 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 - M2: `LogFormat`, `PendingQueue` (stores structured `{day, entry}`; undecodable lines kept), `LogWriter` actor (flush before write, never creates the folder, outcome `.written` / `.queued` / `.lost`). Known limitation: if the queue file can't be rewritten after a flush, lines may be written twice (chosen over losing them).
 - M1: XcodeGen project, Makefile, menu bar, floating `AvocadoPanel`. Drag via `DragHandleNSView` under the skin (`hitTest` only on the skin band, `performDrag`), chosen over `isMovableByWindowBackground` because SwiftUI in `NSHostingView` doesn't reliably report `mouseDownCanMoveWindow`.
 - Known gaps (by plan): context menu, `⌘.`, selecting the task text after a break, position memory, sizes (M5); Settings window and first-run state (M6); sound, notification, bounce (M7); sleep/lock observers, recovery, quit confirmation (M8).
-- Next: milestone 5, panel details.
+- Next: milestone 6, Settings window, folder picker with vault detection, first-run state, launch at login.
 - Hand-tested 2026-10-15 (M1; one desktop, three displays): floating, full-screen apps, drag by skin only, Show/Hide, Settings in front, Quit all pass. Clicks on the transparent corners do **not** pass through (accepted for now). Not yet tested: Spaces, moving between displays.
-- To test by hand for M4:
+- To test by hand for M5:
+  - Click the task field and type while another app stays frontmost (its window title stays active); press Return, then keys should no longer go into the field.
+  - Drag the avocado, quit, relaunch: same place. Move it to another display, disconnect that display: it comes back to the main screen.
+  - Right click on the flesh, the skin and the pit: the menu appears. Its Settings… opens the Settings window in front.
+  - `⌘.` stops a running session after you've clicked into the avocado.
+  - `defaults write com.example.avodoro avocadoSize large`, restart: bigger avocado, same place. `defaults delete com.example.avodoro avocadoSize` to go back.
+  - After a break ends, click the task field: the old text is selected, typing replaces it.
+- To test by hand for M4 (done 2026-10-16 except where noted):
   - Set the log folder (command above), restart, run a 5 min focus session to the end, rate energy; check the line in `YYYY-MM-DD.md`.
   - Pause and resume by clicking the pit; Stop from the menu after more than 1 min (logs `stopped`) and before 1 min (nothing logged).
   - Type in the task field while another app stays frontmost; press Return to start.

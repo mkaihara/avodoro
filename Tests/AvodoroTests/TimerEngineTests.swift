@@ -311,6 +311,28 @@ final class TimerEngineTests {
         #expect(engine.remaining(at: clock.now) == minutes(20))
     }
 
+    @Test func taskTextIsSelectedOnceAfterBreak() {
+        startFocus(text: "Refactor parser")
+        clock.advance(by: minutes(25))
+        engine.skipEnergy()
+        #expect(!engine.selectsTaskTextOnNextFocus) // focus → break: the field is empty
+
+        engine.start()
+        clock.advance(by: minutes(5))
+        #expect(engine.selectsTaskTextOnNextFocus)
+        #expect(engine.consumeTaskTextSelection())
+        #expect(!engine.consumeTaskTextSelection())
+    }
+
+    @Test func noSelectionWhenRestoredTextIsEmpty() {
+        startFocus(text: "")
+        clock.advance(by: minutes(25))
+        engine.skipEnergy()
+        engine.start()
+        clock.advance(by: minutes(5))
+        #expect(!engine.selectsTaskTextOnNextFocus)
+    }
+
     @Test func defaultBreakLengthComesFromConfiguration() {
         makeEngine(.init(defaultBreakMinutes: 10))
         startFocus()
