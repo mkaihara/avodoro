@@ -168,6 +168,9 @@ struct AvocadoView: View {
                 .focused($taskFieldFocused)
                 .onSubmit {
                     if engine.phase == .idle { engine.start() }
+                    // Return selects the whole text in an NSTextField; leave the field instead,
+                    // so the next keys don't replace the task.
+                    Self.endTaskEditing()
                 }
                 .onChange(of: taskFieldFocused) { _, focused in
                     guard focused, engine.consumeTaskTextSelection() else { return }
@@ -178,9 +181,19 @@ struct AvocadoView: View {
                 }
                 .onChange(of: engine.phase) { old, new in
                     // Once a session starts, stray keys should not keep editing the task.
-                    if old == .idle && new == .running { taskFieldFocused = false }
+                    if old != .running && new == .running { Self.endTaskEditing() }
                 }
                 .accessibilityLabel("Task")
+        }
+    }
+
+    /// Ends editing in the panel. `@FocusState = false` does not reliably do this in the
+    /// non-activating panel, so it goes through AppKit.
+    private static func endTaskEditing() {
+        DispatchQueue.main.async {
+            for panel in NSApp.windows where panel is AvocadoPanel {
+                panel.makeFirstResponder(nil)
+            }
         }
     }
 

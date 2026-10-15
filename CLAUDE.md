@@ -17,7 +17,7 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
   - Context menu: built in AppKit in `AvocadoPanel.sendEvent` (right click or control-click anywhere, including the skin): Start / Pause or Resume, Stop / Settings… / Hide avocado.
   - `⌘.` stops a session when the panel is key (`AvocadoPanel.performKeyEquivalent`).
   - When a session starts, the task field loses focus. After a break, the restored task text is selected the next time you click the field. The view never takes focus by itself, so it can't steal typing from the app you're in.
-  - Unverified: Settings… in the context menu uses SwiftUI's `openSettings` captured from the panel's `NSHostingView`. If that does nothing, it's an API limitation to report, not to work around.
+  - Settings… in the context menu uses SwiftUI's `openSettings` captured from the panel's `NSHostingView` (verified working).
 - Log folder until M6: `defaults write com.example.avodoro logFolderPath "/path/to/folder"`, then restart the app. Without it, lines wait in `pending.jsonl` and the warning dot says so; they are written as soon as a folder is set.
 - M4 works:
   - `AvocadoShape` with tuned control points (the spec's starting path read as a pear): right shoulder to (0.85, 0.42) c1 (0.70, 0.00) c2 (0.77, 0.24); right belly to (0.50, 1.00) c1 (1.01, 0.78) c2 (0.95, 1.00); left side mirrored. Joins at y = 0.42 stay smooth (collinear controls). Skin is 6 % of the width (7 % looked heavy and squeezed the energy question).
@@ -35,6 +35,7 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 - Known gaps (by plan): context menu, `⌘.`, selecting the task text after a break, position memory, sizes (M5); Settings window and first-run state (M6); sound, notification, bounce (M7); sleep/lock observers, recovery, quit confirmation (M8).
 - Next: milestone 6, Settings window, folder picker with vault detection, first-run state, launch at login.
 - Hand-tested 2026-10-15 (M1; one desktop, three displays): floating, full-screen apps, drag by skin only, Show/Hide, Settings in front, Quit all pass. Clicks on the transparent corners do **not** pass through (accepted for now). Not yet tested: Spaces, moving between displays.
+- Hand-tested M5 on 2026-10-16: position memory across relaunch (pass); right-click menu and its Settings… (pass, so `openSettings` works from the panel's `NSHostingView`). Bug found and fixed: after Return the task text stayed selected and the next keys replaced it; `@FocusState = false` didn't end editing in the panel, now `makeFirstResponder(nil)` does, after Return and when a session starts or resumes. Still to test: the Return fix, `⌘.` (Command + period key), size, selection after a break, display disconnect.
 - To test by hand for M5:
   - Click the task field and type while another app stays frontmost (its window title stays active); press Return, then keys should no longer go into the field.
   - Drag the avocado, quit, relaunch: same place. Move it to another display, disconnect that display: it comes back to the main screen.
