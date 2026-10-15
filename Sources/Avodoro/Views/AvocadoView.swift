@@ -65,7 +65,8 @@ struct AvocadoView: View {
                     .position(x: width * 0.645, y: height * 0.105)
                 if showsWarningReason {
                     warningBubble(warning)
-                        .position(x: width * 0.5, y: height * 0.43) // over the task band
+                        // Whole points keep the 1 pt border on whole pixels.
+                        .position(x: (width * 0.5).rounded(), y: (height * 0.43).rounded()) // over the task band
 
                 }
             }
@@ -148,7 +149,8 @@ struct AvocadoView: View {
                 .lineLimit(2)
         } else {
             // Our own placeholder: the system one is nearly white in dark mode.
-            TextField("Task", text: $engine.taskText, axis: .vertical)
+            // Empty title: macOS draws a TextField's title as a placeholder.
+            TextField("", text: $engine.taskText, axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.rounded(12 * scale))
                 .multilineTextAlignment(.center)
@@ -182,20 +184,36 @@ struct AvocadoView: View {
     }
 
     private func warningBubble(_ reason: String) -> some View {
-        Text(reason)
-            .font(.rounded(11 * scale, .medium))
-            .foregroundStyle(Palette.textOnFlesh)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, 8 * scale)
-            .padding(.vertical, 6 * scale)
-            .frame(width: width * 0.56)
-            .background {
-                RoundedRectangle(cornerRadius: 8 * scale)
-                    .fill(Palette.fleshCenter)
-                    .strokeBorder(Palette.warning, lineWidth: 1.5 * scale)
-            }
-            .onTapGesture { showsWarningReason = false }
-            .accessibilityHidden(true) // the dot already carries the reason
+        EvenSize {
+            Text(reason)
+                .font(.rounded(11 * scale, .medium))
+                .foregroundStyle(Palette.textOnFlesh)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 8 * scale)
+                .padding(.vertical, 6 * scale)
+                .frame(width: (width * 0.56).rounded())
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 8 * scale)
+                .fill(Palette.fleshCenter)
+                .strokeBorder(Palette.warning, lineWidth: 1)
+        }
+        .onTapGesture { showsWarningReason = false }
+        .accessibilityHidden(true) // the dot already carries the reason
+    }
+}
+
+/// Rounds its content's size up to even whole points, so a centered frame's edges land on
+/// whole pixels and thin borders stay the same width all around.
+private struct EvenSize: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let size = subviews.first?.sizeThatFits(proposal) else { return .zero }
+        return CGSize(width: (size.width / 2).rounded(.up) * 2, height: (size.height / 2).rounded(.up) * 2)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center,
+                              proposal: ProposedViewSize(bounds.size))
     }
 }
