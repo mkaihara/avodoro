@@ -1,0 +1,58 @@
+name: Avodoro
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    ENABLE_APP_SANDBOX: NO
+
+targets:
+  Avodoro:
+    type: application
+    platform: macOS
+    sources:
+      - Sources/Avodoro
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.avodoro
+        PRODUCT_NAME: Avodoro
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Avodoro
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+
+  AvodoroTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/AvodoroTests
+    dependencies:
+      - target: Avodoro
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.avodoro.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Avodoro:
+    build:
+      targets:
+        Avodoro: all
+        AvodoroTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - AvodoroTests
