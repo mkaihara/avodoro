@@ -10,8 +10,17 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 
 ## Current status
 
-- Milestone: 6 (settings) done. 79 tests pass.
-- M6 works:
+- Milestone: 7 (end of session) done. 84 tests pass.
+- M7 works:
+  - `CompletionAlerts` (`App/`): on time up (never on Stop) plays the chosen system sound and, if enabled, posts a notification ("Focus session done" + the task, or "Break is over" / "Ready to focus?"). Permission is requested at the first session end, in a `Task`; any failure is logged (`category == "app"`) and ignored, so sound and animation still happen. The notification has no sound of its own.
+  - `TimerEngine.onComplete` now passes `(type, taskText)` captured before the line is written; `completionCount` counts time-ups.
+  - Pit completion motion: `keyframeAnimator` bounce 1 → 1.12 → 0.96 → 1 (0.4 s), or an opacity fade with Reduce Motion.
+  - `UserNotifications` is imported with `@preconcurrency` (the framework isn't annotated for Swift 6 yet).
+- To test by hand for M7:
+  - Run a 5 min session to the end: you hear the sound chosen in Settings, the pit bounces once, and a notification appears. The first time macOS should ask for permission; if it doesn't, or nothing appears, run `log show --info --predicate 'subsystem == "com.example.avodoro"' --last 10m` and send me the output.
+  - With Reduce Motion on (System Settings › Accessibility › Display), the pit fades instead of bouncing.
+  - Sound off / notification off in Settings are respected. Stop never plays the sound.
+- M6 (settings):
   - Settings window (`Views/SettingsView.swift`, `@AppStorage`): log folder with Choose… (`NSOpenPanel`, directories only) and "Inside vault: <name>" / "This folder is not inside an Obsidian vault." / "Folder not found."; presets (up to 6 rows, steppers 1–120, add/remove); default break; discard shorter than; ask energy; pause on screen lock; sound at end + system sound picker (previews on change); notification at end; size Small/Medium/Large (live); launch at login.
   - `SettingsStore` (`Support/`) registers defaults, reads typed values, reloads on `UserDefaults.didChangeNotification`, and pushes changes: folder → `LogService.setFolder` (flushes the pending queue), configuration → `TimerEngine.configuration`. Keys kept from before: `logFolderPath`, `avocadoSize`.
   - `VaultDetector` walks up from the folder looking for a `.obsidian` directory.
@@ -48,7 +57,7 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 - M2: `LogFormat`, `PendingQueue` (stores structured `{day, entry}`; undecodable lines kept), `LogWriter` actor (flush before write, never creates the folder, outcome `.written` / `.queued` / `.lost`). Known limitation: if the queue file can't be rewritten after a flush, lines may be written twice (chosen over losing them).
 - M1: XcodeGen project, Makefile, menu bar, floating `AvocadoPanel`. Drag via `DragHandleNSView` under the skin (`hitTest` only on the skin band, `performDrag`), chosen over `isMovableByWindowBackground` because SwiftUI in `NSHostingView` doesn't reliably report `mouseDownCanMoveWindow`.
 - Known gaps (by plan): context menu, `⌘.`, selecting the task text after a break, position memory, sizes (M5); Settings window and first-run state (M6); sound, notification, bounce (M7); sleep/lock observers, recovery, quit confirmation (M8).
-- Next: milestone 7, end of session: sound, notification, completion animation (energy picker already exists).
+- Next: milestone 8, robustness: sleep and lock pause, crash recovery, quit confirmation.
 - Hand-tested 2026-10-15 (M1; one desktop, three displays): floating, full-screen apps, drag by skin only, Show/Hide, Settings in front, Quit all pass. Clicks on the transparent corners do **not** pass through (accepted for now). Not yet tested: Spaces, moving between displays.
 - Hand-tested M5 on 2026-10-16: position memory across relaunch (pass); right-click menu and its Settings… (pass, so `openSettings` works from the panel's `NSHostingView`). Bug found and fixed: after Return the task text stayed selected and the next keys replaced it; `@FocusState = false` didn't end editing in the panel, now `makeFirstResponder(nil)` does, after Return and when a session starts or resumes. Still to test: the Return fix, `⌘.` (Command + period key), size, selection after a break, display disconnect.
 - To test by hand for M5:

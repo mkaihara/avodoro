@@ -33,8 +33,11 @@ final class TimerEngine {
     /// and typing replaces it.
     private(set) var selectsTaskTextOnNextFocus = false
 
-    /// Called when time is up, for sound, notification and the completion animation.
-    @ObservationIgnored var onComplete: (@MainActor (SessionType) -> Void)?
+    /// Called when time is up (never on Stop), for sound and notification, with the session's
+    /// type and its task text as it was when time ran out.
+    @ObservationIgnored var onComplete: (@MainActor (SessionType, String) -> Void)?
+    /// Counts sessions whose time ran out. The pit's completion motion watches it.
+    private(set) var completionCount = 0
 
     @ObservationIgnored private let clock: any Clock
     @ObservationIgnored private let timeZone: () -> TimeZone
@@ -171,9 +174,12 @@ final class TimerEngine {
     private func timeUp() {
         timeUpAction = nil
         guard let session, case .running(let endDate) = session.state else { return }
+        // Captured first: writing a break's line restores the previous focus text.
+        let description = taskText
         finish(status: .completed, end: endDate, actualSeconds: session.plannedSeconds,
                pausedSeconds: session.pausedSeconds)
-        onComplete?(session.type)
+        completionCount += 1
+        onComplete?(session.type, description)
     }
 
     // MARK: Finishing

@@ -16,10 +16,13 @@ struct PitView: View {
     /// Pit diameter in points.
     let diameter: CGFloat
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var ringWidth: CGFloat { 6 * scale }
     private var ringGap: CGFloat { 4 * scale }
 
     var body: some View {
+        let fade = reduceMotion // the animator's closures are @Sendable
         Button(action: tap) {
             ZStack {
                 Circle()
@@ -42,6 +45,21 @@ struct PitView: View {
                 content
             }
             .contentShape(Circle())
+            .keyframeAnimator(initialValue: 1.0, trigger: engine.completionCount) { pit, value in
+                // The one moment of motion: a short bounce when time is up, or a fade with Reduce Motion.
+                pit
+                    .scaleEffect(fade ? 1 : value)
+                    .opacity(fade ? value : 1)
+            } keyframes: { _ in
+                if fade {
+                    LinearKeyframe(0.35, duration: 0.2)
+                    LinearKeyframe(1.0, duration: 0.2)
+                } else {
+                    SpringKeyframe(1.12, duration: 0.15)
+                    SpringKeyframe(0.96, duration: 0.12)
+                    SpringKeyframe(1.0, duration: 0.13)
+                }
+            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)

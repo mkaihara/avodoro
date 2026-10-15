@@ -48,6 +48,7 @@ final class TimerEngineTests {
     let clock = FakeClock(now: LogFormatTests.date(2026, 10, 15, 9, 0))
     var lines: [(day: LogDay, entry: LogEntry)] = []
     var completed: [SessionType] = []
+    var completedDescriptions: [String] = []
     var engine: TimerEngine!
 
     init() {
@@ -61,7 +62,10 @@ final class TimerEngineTests {
             timeZone: { LogFormatTests.rome },
             log: { [unowned self] day, entry in lines.append((day, entry)) }
         )
-        engine.onComplete = { [unowned self] type in completed.append(type) }
+        engine.onComplete = { [unowned self] type, description in
+            completed.append(type)
+            completedDescriptions.append(description)
+        }
     }
 
     func minutes(_ value: Double) -> TimeInterval { value * 60 }
@@ -339,6 +343,37 @@ final class TimerEngineTests {
         clock.advance(by: minutes(25))
         engine.skipEnergy()
         #expect(engine.selectedMinutes == 10)
+    }
+
+    // MARK: Completion signals
+
+    @Test func completionCountsOnlyTimeUp() {
+        startFocus()
+        clock.advance(by: minutes(25))
+        #expect(engine.completionCount == 1)
+        engine.start() // break
+        clock.advance(by: minutes(5))
+        #expect(engine.completionCount == 2)
+
+        startFocus()
+        clock.advance(by: minutes(3))
+        engine.stop()
+        engine.skipEnergy()
+        startFocus()
+        clock.advance(by: 30)
+        engine.stop() // discarded
+        #expect(engine.completionCount == 2)
+        #expect(completed == [.focus, .break])
+    }
+
+    @Test func onCompletePassesTheSessionsOwnText() {
+        startFocus(text: "Refactor parser")
+        clock.advance(by: minutes(25))
+        engine.skipEnergy()
+        engine.start()
+        clock.advance(by: minutes(5))
+        #expect(completedDescriptions == ["Refactor parser", ""])
+        #expect(engine.taskText == "Refactor parser") // restored after the break
     }
 
     // MARK: Wrong phases

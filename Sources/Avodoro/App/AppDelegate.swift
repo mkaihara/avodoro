@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let engine: TimerEngine
     let panelController: PanelController
     let menuBarTicker: MenuBarTicker
+    let completionAlerts: CompletionAlerts
 
     override init() {
         let settings = SettingsStore()
@@ -22,6 +23,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.engine = engine
         panelController = PanelController(engine: engine, logService: logService, settings: settings)
         menuBarTicker = MenuBarTicker(engine: engine)
+        let completionAlerts = CompletionAlerts(settings: settings)
+        engine.onComplete = { completionAlerts.sessionCompleted(type: $0, description: $1) }
+        self.completionAlerts = completionAlerts
         super.init()
     }
 
