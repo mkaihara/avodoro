@@ -15,6 +15,9 @@ struct AvocadoView: View {
     var scale: CGFloat = 1
 
     @Environment(\.isSnapshot) private var isSnapshot
+    /// The warning reason is drawn in the panel: system tooltips don't show while the app is
+    /// inactive, and the panel never activates the app.
+    @State var showsWarningReason = false
 
     private var width: CGFloat { Self.baseSize.width * scale }
     private var height: CGFloat { Self.baseSize.height * scale }
@@ -47,7 +50,7 @@ struct AvocadoView: View {
             if engine.phase == .finishing {
                 // Lower than the task band: the flesh is too narrow for the question higher up.
                 EnergyPicker(engine: engine, scale: scale)
-                    .position(x: width * 0.5, y: height * 0.44)
+                    .position(x: width * 0.5, y: height * 0.43)
             } else {
                 taskField
                     .frame(width: width * 0.5, height: height * 0.14)
@@ -60,10 +63,17 @@ struct AvocadoView: View {
             if let warning {
                 warningDot(warning)
                     .position(x: width * 0.645, y: height * 0.105)
+                if showsWarningReason {
+                    warningBubble(warning)
+                        .position(x: width * 0.5, y: height * 0.43) // over the task band
+
+                }
             }
         }
         .frame(width: width, height: height)
         .foregroundStyle(Palette.textOnFlesh)
+        // The avocado is an object with fixed colors; keep system controls (caret, text) dark on it.
+        .environment(\.colorScheme, .light)
     }
 
     // MARK: Parts
@@ -137,20 +147,24 @@ struct AvocadoView: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
         } else {
-            TextField(
-                "Task",
-                text: $engine.taskText,
-                prompt: Text("What are you doing?").foregroundStyle(Palette.textOnFlesh.opacity(0.6)),
-                axis: .vertical
-            )
-            .textFieldStyle(.plain)
-            .font(.rounded(12 * scale))
-            .multilineTextAlignment(.center)
-            .lineLimit(1...2)
-            .onSubmit {
-                if engine.phase == .idle { engine.start() }
-            }
-            .accessibilityLabel("Task")
+            // Our own placeholder: the system one is nearly white in dark mode.
+            TextField("Task", text: $engine.taskText, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.rounded(12 * scale))
+                .multilineTextAlignment(.center)
+                .lineLimit(1...2)
+                .background(alignment: .center) {
+                    if engine.taskText.isEmpty {
+                        Text("What are you doing?")
+                            .font(.rounded(12 * scale))
+                            .opacity(0.6)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .onSubmit {
+                    if engine.phase == .idle { engine.start() }
+                }
+                .accessibilityLabel("Task")
         }
     }
 
@@ -160,7 +174,28 @@ struct AvocadoView: View {
             .frame(width: 9 * scale, height: 9 * scale)
             .padding(4 * scale) // larger hover target
             .contentShape(Circle())
-            .help(reason)
+            .onHover { showsWarningReason = $0 }
+            .onTapGesture { showsWarningReason.toggle() }
+            .accessibilityElement()
             .accessibilityLabel(reason)
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private func warningBubble(_ reason: String) -> some View {
+        Text(reason)
+            .font(.rounded(11 * scale, .medium))
+            .foregroundStyle(Palette.textOnFlesh)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 8 * scale)
+            .padding(.vertical, 6 * scale)
+            .frame(width: width * 0.56)
+            .background {
+                RoundedRectangle(cornerRadius: 8 * scale)
+                    .fill(Palette.fleshCenter)
+                    .strokeBorder(Palette.warning, lineWidth: 1.5 * scale)
+            }
+            .onTapGesture { showsWarningReason = false }
+            .accessibilityHidden(true) // the dot already carries the reason
     }
 }

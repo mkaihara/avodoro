@@ -15,11 +15,13 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 - M4 works:
   - `AvocadoShape` with tuned control points (the spec's starting path read as a pear): right shoulder to (0.85, 0.42) c1 (0.70, 0.00) c2 (0.77, 0.24); right belly to (0.50, 1.00) c1 (1.01, 0.78) c2 (0.95, 1.00); left side mirrored. Joins at y = 0.42 stay smooth (collinear controls). Skin is 6 % of the width (7 % looked heavy and squeezed the energy question).
   - `AvocadoView` in every state (idle, running, paused, finishing with `EnergyPicker`, warning dot with tooltip), `PitView` with ring and countdown. All text passes WCAG AA (`PaletteTests`). Snapshots: `make snapshot` → 21 PNGs.
-  - Energy picker was pulled forward from M7 (otherwise each focus session would wait 120 s). It sits lower than the task band (centre y = 0.44) because the flesh is too narrow higher up; "Skip" sits close to the ring.
+  - Energy picker was pulled forward from M7 (otherwise each focus session would wait 120 s). It sits lower than the task band (centre y = 0.43) because the flesh is too narrow higher up; "Skip" shares the row with the 1–5 buttons to stay clear of the ring.
   - `LogService` connects the engine to `LogWriter` with a serial task chain and computes the warning text.
   - Menu bar: countdown label while running, Start / Pause or Resume / Stop, Open today's log (Obsidian URL, Finder fallback).
   - **API deviation:** a `TimelineView` inside the `MenuBarExtra` label puts SwiftUI into an endless update loop at launch (100 % CPU, app never finishes launching; seen on macOS 27). The menu bar label uses `MenuBarTicker` (a 1 s `Timer` that only redraws while running) instead. The avocado itself uses `TimelineView` as specified.
   - `FirstMouseHostingView` accepts the first click, so controls work while another app is frontmost.
+  - Task placeholder is drawn by the view (the system placeholder is nearly white in dark mode), and the avocado forces `colorScheme = .light` so the caret and typed text stay dark.
+  - **API deviation:** `.help()` tooltips never appear on the panel (system tooltips only show while the app is active, and the panel never activates it; seen 2026-10-16). The warning reason is drawn in the panel instead: a small card over the task band, shown while hovering the dot or after clicking it (click again or on the card to close).
 - M3: `TimerEngine` + `Clock` (`Sources/Avodoro/Timer/`). Never ticks; schedules time-up and the 120 s energy timeout. Choices: completed end time = time-up moment; `actual` = planned − remaining; stopping while paused counts the open pause; default focus preset 15 min. `Session` is Codable for M8. `systemWillSleep()` / `screenDidLock()` exist, observers come in M8.
 - M2: `LogFormat`, `PendingQueue` (stores structured `{day, entry}`; undecodable lines kept), `LogWriter` actor (flush before write, never creates the folder, outcome `.written` / `.queued` / `.lost`). Known limitation: if the queue file can't be rewritten after a flush, lines may be written twice (chosen over losing them).
 - M1: XcodeGen project, Makefile, menu bar, floating `AvocadoPanel`. Drag via `DragHandleNSView` under the skin (`hitTest` only on the skin band, `performDrag`), chosen over `isMovableByWindowBackground` because SwiftUI in `NSHostingView` doesn't reliably report `mouseDownCanMoveWindow`.
@@ -32,7 +34,8 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
   - Type in the task field while another app stays frontmost; press Return to start.
   - Menu bar shows the countdown and it updates every second.
   - Open today's log opens the file in Obsidian.
-  - Without a folder: the red dot appears and its tooltip explains why.
+  - Without a folder: the red dot appears; hovering it (or clicking it) shows the reason card.
+- Hand-tested M4 on 2026-10-16: Stop after more than 1 min logs `stopped` (pass). Fixed after testing: white placeholder, Skip too close to the pit, no tooltip on the red dot.
 - Update this section at the end of every milestone: what works, what is known to be broken, what's next, and what I need to test by hand.
 
 ## Tech stack

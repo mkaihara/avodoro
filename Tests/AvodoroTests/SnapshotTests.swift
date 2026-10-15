@@ -16,7 +16,7 @@ struct SnapshotTests {
     static let sizes: [(name: String, scale: CGFloat)] = [("small", 0.8), ("medium", 1), ("large", 1.25)]
 
     enum State: String, CaseIterable {
-        case idle, running0, running50, running90, paused, finishing, warning
+        case idle, running0, running50, running90, paused, finishing, warning, warningReason
     }
 
     @Test(arguments: State.allCases)
@@ -44,12 +44,13 @@ struct SnapshotTests {
             start(); clock.advance(by: 7 * 60 + 25); engine.pause()
         case .finishing:
             start(); clock.advance(by: 20 * 60)
-        case .warning:
+        case .warning, .warningReason:
             warning = "Log folder not found. 2 sessions are waiting to be written."
         }
 
         for size in Self.sizes {
-            let view = AvocadoView(engine: engine, warning: warning, scale: size.scale)
+            let view = AvocadoView(engine: engine, warning: warning, scale: size.scale,
+                                   showsWarningReason: state == .warningReason)
             try write(view, name: "\(state.rawValue)-\(size.name)")
         }
     }
