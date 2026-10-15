@@ -53,6 +53,8 @@ final class TimerEngine {
         self.log = log
     }
 
+    var now: Date { clock.now }
+
     var phase: Phase {
         if finishing != nil { return .finishing }
         switch session?.state {

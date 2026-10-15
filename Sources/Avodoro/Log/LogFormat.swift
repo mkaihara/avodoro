@@ -44,6 +44,13 @@ struct LogDay: Codable, Hashable, Sendable {
         self.day = day
     }
 
+    init(date: Date, timeZone: TimeZone) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        self.init(year: parts.year!, month: parts.month!, day: parts.day!)
+    }
+
     init?(_ text: String) {
         let parts = text.split(separator: "-")
         guard parts.count == 3,
@@ -110,10 +117,10 @@ enum LogFormat {
     ) -> (day: LogDay, entry: LogEntry) {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
-        let startParts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: start)
+        let startParts = calendar.dateComponents([.hour, .minute], from: start)
         let endParts = calendar.dateComponents([.hour, .minute], from: end)
 
-        let day = LogDay(year: startParts.year!, month: startParts.month!, day: startParts.day!)
+        let day = LogDay(date: start, timeZone: timeZone)
         let pausedMinutes = roundedMinutes(pausedSeconds)
         let entry = LogEntry(
             start: LogTime(hour: startParts.hour!, minute: startParts.minute!),

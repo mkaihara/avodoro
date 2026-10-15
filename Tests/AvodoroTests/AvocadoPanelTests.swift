@@ -31,8 +31,10 @@ struct AvocadoPanelTests {
 
     @Test func dragsOnlyOnSkin() {
         let size = CGSize(width: 240, height: 320)
-        #expect(AvocadoView.isOnSkin(CGPoint(x: 120, y: 3), in: size))
-        #expect(!AvocadoView.isOnSkin(CGPoint(x: 120, y: 160), in: size))
-        #expect(!AvocadoView.isOnSkin(CGPoint(x: 2, y: 2), in: size))
+        #expect(AvocadoShape.skinContains(CGPoint(x: 120, y: 4), in: size))      // top of the skin
+        #expect(AvocadoShape.skinContains(CGPoint(x: 120, y: 316), in: size))    // bottom of the skin
+        #expect(!AvocadoShape.skinContains(CGPoint(x: 120, y: 160), in: size))   // flesh
+        #expect(!AvocadoShape.skinContains(CGPoint(x: 120, y: 224), in: size))   // pit
+        #expect(!AvocadoShape.skinContains(CGPoint(x: 2, y: 2), in: size))       // transparent corner
     }
 }

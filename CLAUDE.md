@@ -10,26 +10,29 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 
 ## Current status
 
-- Milestone: 3 (timer engine) done. 55 tests pass.
-- M3 works (`Sources/Avodoro/Timer/`), tested with a fake clock but **not wired into the app yet** (M4):
-  - `Clock` protocol (shadows `Swift.Clock` inside the module) with `now` and one-shot `schedule(at:)`; `SystemClock` uses a `Timer` on the main run loop. The engine never ticks: it schedules time-up at `endDate` and the 120 s energy timeout.
-  - `TimerEngine` (`@MainActor @Observable`): idle → running ⇄ paused → finishing → idle as in the spec. Writes lines through a `log` closure (M4 connects it to `LogWriter`). `Configuration` holds discard threshold, default break, ask energy, pause on lock (M6 maps settings onto it). `onComplete` hook for sound/notification/bounce (M7). `systemWillSleep()` / `screenDidLock()` exist; the notification observers come in M8.
-  - Choices: a completed session's end time is the time-up moment, not the rating moment. `actual` = planned − remaining, so pauses never count. Stopping while paused counts the open pause in `paused`. Default focus preset is 15 min. Switching mode in idle picks the default break length or the last focus preset.
-  - `Session` is Codable, ready for `active-session.json` in M8.
-- M2 works (`Sources/Avodoro/Log/`), tested but **not wired into the app yet** (no sessions until M3/M4):
-  - `LogFormat`: `makeEntry` (truncate times, round minutes, sanitize, start date picks the file), `format`, `parse` (reference regex verbatim), `frontmatter`, `frontmatterTimeZone`. `LogEntry.timeZone` is always set; `[tz:: …]` is written only when it differs from the target file's frontmatter `tz` (or the file has none).
-  - `PendingQueue`: `pending.jsonl` stores the structured `{day, entry}`, not the final text, so `tz` is decided against the file the line finally lands in. Undecodable queue lines are kept verbatim and logged.
-  - `LogWriter` (actor): flushes the queue before every write; a new line goes behind any still-queued lines; `setFolder` flushes. Never creates the log folder; a missing folder means queue. Outcome is `.written`, `.queued` or `.lost` (only if the queue itself can't be written; the full line then goes to the system log at fault level).
-  - Known limitation: if the queue file can't be rewritten after a successful flush, those lines may be written twice next time (chosen over losing them).
-- M1 works: `make gen build test snapshot run clean`. Menu bar `leaf.fill` item with Show/Hide avocado, Settings… (placeholder window), Quit. No Dock icon. A transparent floating `AvocadoPanel` (240 × 320) appears at the bottom right of the main screen with a placeholder oval (skin + flesh gradient).
-- Drag decision: an AppKit `DragHandleNSView` (`Window/DragHandleView.swift`) sits under the skin, claims hits only on the skin band via `hitTest`, and calls `window?.performDrag(with:)`. Chosen over `isMovableByWindowBackground` because SwiftUI content in `NSHostingView` does not reliably report `mouseDownCanMoveWindow`, and this keeps every click inside the flesh for the controls. `acceptsFirstMouse` returns true so the first click drags even though the panel never activates the app.
-- Known gaps (by plan): no position memory or off-screen check yet (M5); the oval is a placeholder for `AvocadoShape` (M4); Settings is empty (M6).
-- Next: milestone 4, `AvocadoShape` and `AvocadoView` in all states, snapshots, wired to the engine.
-- Nothing new to test by hand for M2 or M3. Appending to a file in iCloud Drive while Obsidian has it open can only be checked once sessions exist (M4).
-- Hand-tested on 2026-10-15 (one desktop, three displays):
-  - Passed: floats above other apps, stays visible over a full-screen app, drag by the skin works, drag in the flesh does nothing, Show/Hide, Settings… opens in front, Quit.
-  - Clicks on the transparent corners do **not** pass through to the window below; the panel swallows them. Accepted for now, not fixed.
-  - Still to test: switching Spaces (needs a second desktop); moving the avocado between the three displays.
+- Milestone: 4 (avocado view, wired to the engine) done. 61 tests pass. You can run real sessions now.
+- Log folder until M6: `defaults write com.example.avodoro logFolderPath "/path/to/folder"`, then restart the app. Without it, lines wait in `pending.jsonl` and the warning dot says so; they are written as soon as a folder is set.
+- M4 works:
+  - `AvocadoShape` with tuned control points (the spec's starting path read as a pear): right shoulder to (0.85, 0.42) c1 (0.70, 0.00) c2 (0.77, 0.24); right belly to (0.50, 1.00) c1 (1.01, 0.78) c2 (0.95, 1.00); left side mirrored. Joins at y = 0.42 stay smooth (collinear controls). Skin is 6 % of the width (7 % looked heavy and squeezed the energy question).
+  - `AvocadoView` in every state (idle, running, paused, finishing with `EnergyPicker`, warning dot with tooltip), `PitView` with ring and countdown. All text passes WCAG AA (`PaletteTests`). Snapshots: `make snapshot` → 21 PNGs.
+  - Energy picker was pulled forward from M7 (otherwise each focus session would wait 120 s). It sits lower than the task band (centre y = 0.44) because the flesh is too narrow higher up; "Skip" sits close to the ring.
+  - `LogService` connects the engine to `LogWriter` with a serial task chain and computes the warning text.
+  - Menu bar: countdown label while running, Start / Pause or Resume / Stop, Open today's log (Obsidian URL, Finder fallback).
+  - **API deviation:** a `TimelineView` inside the `MenuBarExtra` label puts SwiftUI into an endless update loop at launch (100 % CPU, app never finishes launching; seen on macOS 27). The menu bar label uses `MenuBarTicker` (a 1 s `Timer` that only redraws while running) instead. The avocado itself uses `TimelineView` as specified.
+  - `FirstMouseHostingView` accepts the first click, so controls work while another app is frontmost.
+- M3: `TimerEngine` + `Clock` (`Sources/Avodoro/Timer/`). Never ticks; schedules time-up and the 120 s energy timeout. Choices: completed end time = time-up moment; `actual` = planned − remaining; stopping while paused counts the open pause; default focus preset 15 min. `Session` is Codable for M8. `systemWillSleep()` / `screenDidLock()` exist, observers come in M8.
+- M2: `LogFormat`, `PendingQueue` (stores structured `{day, entry}`; undecodable lines kept), `LogWriter` actor (flush before write, never creates the folder, outcome `.written` / `.queued` / `.lost`). Known limitation: if the queue file can't be rewritten after a flush, lines may be written twice (chosen over losing them).
+- M1: XcodeGen project, Makefile, menu bar, floating `AvocadoPanel`. Drag via `DragHandleNSView` under the skin (`hitTest` only on the skin band, `performDrag`), chosen over `isMovableByWindowBackground` because SwiftUI in `NSHostingView` doesn't reliably report `mouseDownCanMoveWindow`.
+- Known gaps (by plan): context menu, `⌘.`, selecting the task text after a break, position memory, sizes (M5); Settings window and first-run state (M6); sound, notification, bounce (M7); sleep/lock observers, recovery, quit confirmation (M8).
+- Next: milestone 5, panel details.
+- Hand-tested 2026-10-15 (M1; one desktop, three displays): floating, full-screen apps, drag by skin only, Show/Hide, Settings in front, Quit all pass. Clicks on the transparent corners do **not** pass through (accepted for now). Not yet tested: Spaces, moving between displays.
+- To test by hand for M4:
+  - Set the log folder (command above), restart, run a 5 min focus session to the end, rate energy; check the line in `YYYY-MM-DD.md`.
+  - Pause and resume by clicking the pit; Stop from the menu after more than 1 min (logs `stopped`) and before 1 min (nothing logged).
+  - Type in the task field while another app stays frontmost; press Return to start.
+  - Menu bar shows the countdown and it updates every second.
+  - Open today's log opens the file in Obsidian.
+  - Without a folder: the red dot appears and its tooltip explains why.
 - Update this section at the end of every milestone: what works, what is known to be broken, what's next, and what I need to test by hand.
 
 ## Tech stack
