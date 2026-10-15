@@ -13,13 +13,15 @@ final class PanelController {
 
     @ObservationIgnored private let engine: TimerEngine
     @ObservationIgnored private let logService: LogService
+    @ObservationIgnored private let settings: SettingsStore
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private lazy var panel: AvocadoPanel = makePanel()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
-    init(engine: TimerEngine, logService: LogService, defaults: UserDefaults = .standard) {
+    init(engine: TimerEngine, logService: LogService, settings: SettingsStore, defaults: UserDefaults = .standard) {
         self.engine = engine
         self.logService = logService
+        self.settings = settings
         self.defaults = defaults
         size = AvocadoSize(defaultsValue: defaults.string(forKey: AvocadoSize.defaultsKey))
     }
@@ -43,7 +45,9 @@ final class PanelController {
     private func makePanel() -> AvocadoPanel {
         let panelSize = size.panelSize
         let panel = AvocadoPanel(contentRect: NSRect(origin: .zero, size: panelSize))
-        let hostingView = FirstMouseHostingView(rootView: PanelContent(engine: engine, logService: logService, controller: self))
+        let hostingView = FirstMouseHostingView(rootView: PanelContent(
+            engine: engine, logService: logService, settings: settings, controller: self
+        ))
         hostingView.frame = NSRect(origin: .zero, size: panelSize)
         panel.contentView = hostingView
 
@@ -99,6 +103,12 @@ final class PanelController {
         panel.contentSizeChanged()
     }
 
+    func showSettings() {
+        // Menu bar apps otherwise tend to open Settings behind other windows.
+        NSApp.activate()
+        openSettings?()
+    }
+
     // MARK: Context menu
 
     private func makeContextMenu() -> NSMenu {
@@ -116,11 +126,7 @@ final class PanelController {
             break
         }
         if !menu.items.isEmpty { menu.addItem(.separator()) }
-        menu.addItem(ActionMenuItem("Settings…") { [weak self] in
-            // Menu bar apps otherwise tend to open Settings behind other windows.
-            NSApp.activate()
-            self?.openSettings?()
-        })
+        menu.addItem(ActionMenuItem("Settings…") { [weak self] in self?.showSettings() })
         menu.addItem(ActionMenuItem("Hide avocado") { [weak self] in self?.hide() })
         return menu
     }
@@ -129,11 +135,19 @@ final class PanelController {
 private struct PanelContent: View {
     let engine: TimerEngine
     let logService: LogService
+    let settings: SettingsStore
     let controller: PanelController
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        AvocadoView(engine: engine, warning: logService.warning, scale: controller.size.scale)
+        AvocadoView(
+            engine: engine,
+            warning: logService.warning,
+            scale: controller.size.scale,
+            presets: settings.presets,
+            needsLogFolder: logService.folder == nil,
+            onChooseLogFolder: { controller.showSettings() }
+        )
             .onAppear {
                 controller.openSettings = { openSettings() }
             }

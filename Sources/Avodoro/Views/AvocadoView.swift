@@ -9,11 +9,14 @@ extension EnvironmentValues {
 /// The floating avocado. Thin: it reads `TimerEngine` and calls its methods.
 struct AvocadoView: View {
     nonisolated static let baseSize = CGSize(width: 240, height: 320)
-    static let presets = [5, 10, 15, 20]
 
     @Bindable var engine: TimerEngine
     var warning: String?
     var scale: CGFloat = 1
+    var presets: [Int] = SettingsStore.defaultPresets
+    /// First run: no log folder yet, so the preset band asks for one.
+    var needsLogFolder = false
+    var onChooseLogFolder: () -> Void = {}
 
     @Environment(\.isSnapshot) private var isSnapshot
     /// The warning reason is drawn in the panel: system tooltips don't show while the app is
@@ -45,8 +48,10 @@ struct AvocadoView: View {
                 .position(x: width * 0.5, y: height * 0.17)
 
             if engine.phase == .idle {
-                presetChips
-                    .position(x: width * 0.5, y: height * 0.285)
+                Group {
+                    if needsLogFolder { chooseFolderPrompt } else { presetChips }
+                }
+                .position(x: width * 0.5, y: height * 0.285)
             }
 
             if engine.phase == .finishing {
@@ -119,26 +124,51 @@ struct AvocadoView: View {
         .accessibilityHint(engine.phase == .idle ? "Switches between focus and break" : "")
     }
 
+    private var chooseFolderPrompt: some View {
+        Button(action: onChooseLogFolder) {
+            Text("Choose a log folder")
+                .font(.rounded(12 * scale, .medium))
+                .underline()
+                .multilineTextAlignment(.center)
+                .frame(width: width * 0.42)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens Settings")
+    }
+
+    /// Up to four chips in one row; five or six go in two rows, since the flesh is narrow here.
     private var presetChips: some View {
-        HStack(spacing: 3 * scale) {
-            ForEach(Self.presets, id: \.self) { minutes in
-                let selected = minutes == engine.selectedMinutes
-                Button {
-                    engine.select(minutes: minutes)
-                } label: {
-                    Text("\(minutes)")
-                        .font(.rounded(12 * scale, .medium).monospacedDigit())
-                        .foregroundStyle(selected ? Palette.fleshCenter : Palette.textOnFlesh)
-                        .frame(minWidth: 18 * scale, minHeight: 18 * scale)
-                        .padding(.horizontal, 1 * scale)
-                        .background(Capsule().fill(selected ? Palette.skin : .clear))
-                        .contentShape(Capsule())
+        let rows = presets.count > 4
+            ? [Array(presets.prefix((presets.count + 1) / 2)), Array(presets.dropFirst((presets.count + 1) / 2))]
+            : [presets]
+        return VStack(spacing: 2 * scale) {
+            ForEach(rows, id: \.self) { row in
+                HStack(spacing: 3 * scale) {
+                    ForEach(row, id: \.self) { minutes in
+                        presetChip(minutes)
+                    }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(minutes) minutes")
-                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
+    }
+
+    private func presetChip(_ minutes: Int) -> some View {
+        let selected = minutes == engine.selectedMinutes
+        return Button {
+            engine.select(minutes: minutes)
+        } label: {
+            Text("\(minutes)")
+                .font(.rounded(12 * scale, .medium).monospacedDigit())
+                .foregroundStyle(selected ? Palette.fleshCenter : Palette.textOnFlesh)
+                .frame(minWidth: 18 * scale, minHeight: 18 * scale)
+                .padding(.horizontal, 1 * scale)
+                .background(Capsule().fill(selected ? Palette.skin : .clear))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(minutes) minutes")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     @ViewBuilder private var taskField: some View {

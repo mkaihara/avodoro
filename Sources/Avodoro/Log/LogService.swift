@@ -5,9 +5,6 @@ import Observation
 @MainActor
 @Observable
 final class LogService {
-    /// Until the Settings window exists (M6): `defaults write com.example.avodoro logFolderPath <path>`.
-    static let folderKey = "logFolderPath"
-
     private(set) var folder: URL?
     private(set) var pendingCount = 0
 
@@ -18,11 +15,6 @@ final class LogService {
         self.folder = folder
         writer = LogWriter(folder: folder, queue: queue)
         enqueue { await $0.flushPending() }
-    }
-
-    static func folderFromDefaults(_ defaults: UserDefaults = .standard) -> URL? {
-        guard let path = defaults.string(forKey: folderKey), !path.isEmpty else { return nil }
-        return URL(filePath: path, directoryHint: .isDirectory)
     }
 
     func write(day: LogDay, entry: LogEntry) {

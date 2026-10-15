@@ -70,6 +70,9 @@ struct PitView: View {
         Text(Countdown.string(engine.remaining(at: now)))
             .font(.rounded(26 * scale, .semibold).monospacedDigit())
             .foregroundStyle(Palette.textOnPit)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7) // "120:00" shrinks a little to stay inside the pit
+            .frame(maxWidth: diameter * 0.84)
     }
 
     private func tap() {

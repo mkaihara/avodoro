@@ -10,15 +10,30 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 
 ## Current status
 
-- Milestone: 5 (panel details) done. 72 tests pass.
+- Milestone: 6 (settings) done. 79 tests pass.
+- M6 works:
+  - Settings window (`Views/SettingsView.swift`, `@AppStorage`): log folder with Choose… (`NSOpenPanel`, directories only) and "Inside vault: <name>" / "This folder is not inside an Obsidian vault." / "Folder not found."; presets (up to 6 rows, steppers 1–120, add/remove); default break; discard shorter than; ask energy; pause on screen lock; sound at end + system sound picker (previews on change); notification at end; size Small/Medium/Large (live); launch at login.
+  - `SettingsStore` (`Support/`) registers defaults, reads typed values, reloads on `UserDefaults.didChangeNotification`, and pushes changes: folder → `LogService.setFolder` (flushes the pending queue), configuration → `TimerEngine.configuration`. Keys kept from before: `logFolderPath`, `avocadoSize`.
+  - `VaultDetector` walks up from the folder looking for a `.obsidian` directory.
+  - First run (no folder): the preset band shows "Choose a log folder", which opens Settings. Sessions still run; their lines wait in the queue.
+  - Avocado: five or six presets go in two rows (one row didn't fit the flesh); a 3-digit countdown ("120:00") shrinks slightly to stay inside the pit.
+  - Launch at login uses `SMAppService.mainApp`; its state is read from the system, not stored. Unverified with ad hoc signing, and it registers the app at its current path (`build/Build/Products/Debug/Avodoro.app`), so `make clean` breaks it until the next build.
+  - Swift 6.1 compiler crash: `Binding(get:set: someMethod)` crashed IRGen; a closure literal avoids it (comment in `SettingsView.swift`).
+- To test by hand for M6:
+  - Settings… → choose a folder inside your vault (label shows the vault name) and one outside (orange warning). Queued sessions are written as soon as a folder is chosen; the red dot disappears.
+  - `defaults delete com.example.avodoro logFolderPath`, restart: the avocado says "Choose a log folder"; clicking it opens Settings in front.
+  - Edit presets (add up to 6, remove, change values): the chips on the avocado update right away.
+  - Size picker resizes the avocado live.
+  - Ask energy off: a focus session ends without the energy question.
+  - Discard shorter than 0 min: stopping after a few seconds still logs a `stopped` line.
+  - Launch at login on: Avodoro appears in System Settings › General › Login Items; after logging out and in, it starts.
 - M5 works:
   - Position memory: `setFrameAutosaveName("AvocadoPanel")`; on launch and when displays change (`didChangeScreenParametersNotification`), a panel with less than 40 × 40 pt on any screen moves to the bottom right of the main screen (`Window/PanelPlacement.swift`, pure and tested).
-  - Sizes: `AvocadoSize` (small 0.8, medium 1, large 1.25) read from the `UserDefaults` key `avocadoSize`; the panel follows in-process changes (M6's picker) by resizing around its centre, clamped to its screen. Until M6: `defaults write com.example.avodoro avocadoSize large` + restart.
+  - Sizes: `AvocadoSize` (small 0.8, medium 1, large 1.25) from the `avocadoSize` key; the panel follows Settings changes live, resizing around its centre, clamped to its screen.
   - Context menu: built in AppKit in `AvocadoPanel.sendEvent` (right click or control-click anywhere, including the skin): Start / Pause or Resume, Stop / Settings… / Hide avocado.
   - `⌘.` stops a session when the panel is key (`AvocadoPanel.performKeyEquivalent`).
   - When a session starts, the task field loses focus. After a break, the restored task text is selected the next time you click the field. The view never takes focus by itself, so it can't steal typing from the app you're in.
   - Settings… in the context menu uses SwiftUI's `openSettings` captured from the panel's `NSHostingView` (verified working).
-- Log folder until M6: `defaults write com.example.avodoro logFolderPath "/path/to/folder"`, then restart the app. Without it, lines wait in `pending.jsonl` and the warning dot says so; they are written as soon as a folder is set.
 - M4 works:
   - `AvocadoShape` with tuned control points (the spec's starting path read as a pear): right shoulder to (0.85, 0.42) c1 (0.70, 0.00) c2 (0.77, 0.24); right belly to (0.50, 1.00) c1 (1.01, 0.78) c2 (0.95, 1.00); left side mirrored. Joins at y = 0.42 stay smooth (collinear controls). Skin is 6 % of the width (7 % looked heavy and squeezed the energy question).
   - `AvocadoView` in every state (idle, running, paused, finishing with `EnergyPicker`, warning dot with tooltip), `PitView` with ring and countdown. All text passes WCAG AA (`PaletteTests`). Snapshots: `make snapshot` → 21 PNGs.
@@ -33,7 +48,7 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 - M2: `LogFormat`, `PendingQueue` (stores structured `{day, entry}`; undecodable lines kept), `LogWriter` actor (flush before write, never creates the folder, outcome `.written` / `.queued` / `.lost`). Known limitation: if the queue file can't be rewritten after a flush, lines may be written twice (chosen over losing them).
 - M1: XcodeGen project, Makefile, menu bar, floating `AvocadoPanel`. Drag via `DragHandleNSView` under the skin (`hitTest` only on the skin band, `performDrag`), chosen over `isMovableByWindowBackground` because SwiftUI in `NSHostingView` doesn't reliably report `mouseDownCanMoveWindow`.
 - Known gaps (by plan): context menu, `⌘.`, selecting the task text after a break, position memory, sizes (M5); Settings window and first-run state (M6); sound, notification, bounce (M7); sleep/lock observers, recovery, quit confirmation (M8).
-- Next: milestone 6, Settings window, folder picker with vault detection, first-run state, launch at login.
+- Next: milestone 7, end of session: sound, notification, completion animation (energy picker already exists).
 - Hand-tested 2026-10-15 (M1; one desktop, three displays): floating, full-screen apps, drag by skin only, Show/Hide, Settings in front, Quit all pass. Clicks on the transparent corners do **not** pass through (accepted for now). Not yet tested: Spaces, moving between displays.
 - Hand-tested M5 on 2026-10-16: position memory across relaunch (pass); right-click menu and its Settings… (pass, so `openSettings` works from the panel's `NSHostingView`). Bug found and fixed: after Return the task text stayed selected and the next keys replaced it; `@FocusState = false` didn't end editing in the panel, now `makeFirstResponder(nil)` does, after Return and when a session starts or resumes. Still to test: the Return fix, `⌘.` (Command + period key), size, selection after a break, display disconnect.
 - To test by hand for M5:
