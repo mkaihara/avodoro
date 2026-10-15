@@ -15,11 +15,10 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 - Drag decision: an AppKit `DragHandleNSView` (`Window/DragHandleView.swift`) sits under the skin, claims hits only on the skin band via `hitTest`, and calls `window?.performDrag(with:)`. Chosen over `isMovableByWindowBackground` because SwiftUI content in `NSHostingView` does not reliably report `mouseDownCanMoveWindow`, and this keeps every click inside the flesh for the controls. `acceptsFirstMouse` returns true so the first click drags even though the panel never activates the app.
 - Known gaps (by plan): no position memory or off-screen check yet (M5); the oval is a placeholder for `AvocadoShape` (M4); Settings is empty (M6).
 - Next: milestone 2, `LogFormat`, `LogWriter`, pending queue.
-- Test by hand (not verifiable from the CLI; I could launch the app but not capture the screen):
-  - The avocado floats above other apps and stays visible when switching Spaces and over a full-screen app.
-  - Dragging by the dark skin moves the panel; dragging inside the flesh does not.
-  - Clicks on the transparent corners outside the oval reach the window below (or not, please report).
-  - Show/Hide avocado toggles the panel and its menu title; Settings… opens in front; Quit quits.
+- Hand-tested on 2026-10-15 (one desktop, three displays):
+  - Passed: floats above other apps, stays visible over a full-screen app, drag by the skin works, drag in the flesh does nothing, Show/Hide, Settings… opens in front, Quit.
+  - Clicks on the transparent corners do **not** pass through to the window below; the panel swallows them. Accepted for now, not fixed.
+  - Still to test: switching Spaces (needs a second desktop); moving the avocado between the three displays.
 - Update this section at the end of every milestone: what works, what is known to be broken, what's next, and what I need to test by hand.
 
 ## Tech stack
