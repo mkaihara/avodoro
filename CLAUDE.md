@@ -10,7 +10,12 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 
 ## Current status
 
-- Milestone: 2 (log format, writer, pending queue) done. 36 tests pass.
+- Milestone: 3 (timer engine) done. 55 tests pass.
+- M3 works (`Sources/Avodoro/Timer/`), tested with a fake clock but **not wired into the app yet** (M4):
+  - `Clock` protocol (shadows `Swift.Clock` inside the module) with `now` and one-shot `schedule(at:)`; `SystemClock` uses a `Timer` on the main run loop. The engine never ticks: it schedules time-up at `endDate` and the 120 s energy timeout.
+  - `TimerEngine` (`@MainActor @Observable`): idle → running ⇄ paused → finishing → idle as in the spec. Writes lines through a `log` closure (M4 connects it to `LogWriter`). `Configuration` holds discard threshold, default break, ask energy, pause on lock (M6 maps settings onto it). `onComplete` hook for sound/notification/bounce (M7). `systemWillSleep()` / `screenDidLock()` exist; the notification observers come in M8.
+  - Choices: a completed session's end time is the time-up moment, not the rating moment. `actual` = planned − remaining, so pauses never count. Stopping while paused counts the open pause in `paused`. Default focus preset is 15 min. Switching mode in idle picks the default break length or the last focus preset.
+  - `Session` is Codable, ready for `active-session.json` in M8.
 - M2 works (`Sources/Avodoro/Log/`), tested but **not wired into the app yet** (no sessions until M3/M4):
   - `LogFormat`: `makeEntry` (truncate times, round minutes, sanitize, start date picks the file), `format`, `parse` (reference regex verbatim), `frontmatter`, `frontmatterTimeZone`. `LogEntry.timeZone` is always set; `[tz:: …]` is written only when it differs from the target file's frontmatter `tz` (or the file has none).
   - `PendingQueue`: `pending.jsonl` stores the structured `{day, entry}`, not the final text, so `tz` is decided against the file the line finally lands in. Undecodable queue lines are kept verbatim and logged.
@@ -19,8 +24,8 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 - M1 works: `make gen build test snapshot run clean`. Menu bar `leaf.fill` item with Show/Hide avocado, Settings… (placeholder window), Quit. No Dock icon. A transparent floating `AvocadoPanel` (240 × 320) appears at the bottom right of the main screen with a placeholder oval (skin + flesh gradient).
 - Drag decision: an AppKit `DragHandleNSView` (`Window/DragHandleView.swift`) sits under the skin, claims hits only on the skin band via `hitTest`, and calls `window?.performDrag(with:)`. Chosen over `isMovableByWindowBackground` because SwiftUI content in `NSHostingView` does not reliably report `mouseDownCanMoveWindow`, and this keeps every click inside the flesh for the controls. `acceptsFirstMouse` returns true so the first click drags even though the panel never activates the app.
 - Known gaps (by plan): no position memory or off-screen check yet (M5); the oval is a placeholder for `AvocadoShape` (M4); Settings is empty (M6).
-- Next: milestone 3, `TimerEngine` and `Clock`.
-- Nothing new to test by hand for M2. Appending to a file in iCloud Drive while Obsidian has it open can only be checked once sessions exist (M4).
+- Next: milestone 4, `AvocadoShape` and `AvocadoView` in all states, snapshots, wired to the engine.
+- Nothing new to test by hand for M2 or M3. Appending to a file in iCloud Drive while Obsidian has it open can only be checked once sessions exist (M4).
 - Hand-tested on 2026-10-15 (one desktop, three displays):
   - Passed: floats above other apps, stays visible over a full-screen app, drag by the skin works, drag in the flesh does nothing, Show/Hide, Settings… opens in front, Quit.
   - Clicks on the transparent corners do **not** pass through to the window below; the panel swallows them. Accepted for now, not fixed.
