@@ -56,7 +56,7 @@ struct LogFormatTests {
             == "- 10:40-10:52 Refactor parser #code [type:: focus] [planned:: 20] [actual:: 9] [status:: stopped] [paused:: 3] [energy:: 2]")
     }
 
-    @Test(arguments: SessionType.allCases, SessionStatus.allCases)
+    @Test(arguments: [SessionType.focus, .break], SessionStatus.allCases)
     func everyCombinationMatchesAndRoundTrips(type: SessionType, status: SessionStatus) {
         for paused in [nil, 3] as [Int?] {
             for energy in (type == .focus ? [nil, 1, 5] : [nil]) as [Int?] {
@@ -160,27 +160,54 @@ struct LogFormatTests {
         #expect(LogFormat.sanitize("", type: .break) == "Break")
     }
 
-    @Test func sanitizeCutsAtWordBoundary() {
-        let text = Array(repeating: "word", count: 60).joined(separator: " ") // 299 chars
-        let result = LogFormat.sanitize(text, type: .focus)
-        #expect(result.count <= 200)
-        #expect(result.hasSuffix("word…"))
-        #expect(!result.contains(" …"))
-    }
-
-    @Test func sanitizeKeepsWholeWordEndingAtLimit() {
-        let text = String(repeating: "a", count: 199) + " tail"
-        #expect(LogFormat.sanitize(text, type: .focus) == String(repeating: "a", count: 199) + "…")
-    }
-
-    @Test func sanitizeHardCutsSingleLongWord() {
-        let result = LogFormat.sanitize(String(repeating: "x", count: 300), type: .focus)
-        #expect(result == String(repeating: "x", count: 199) + "…")
-    }
-
-    @Test func sanitizeLeavesExactly200Alone() {
-        let text = String(repeating: "y", count: 200)
+    @Test func sanitizeKeepsLongText() {
+        let text = Array(repeating: "word", count: 600).joined(separator: " ") // 2999 chars
         #expect(LogFormat.sanitize(text, type: .focus) == text)
+        let line = LogFormat.format(Self.entry(description: text), fileTimeZone: "Europe/Rome")
+        #expect(Self.matchesReference(line))
+        #expect(LogFormat.parse(line, fileTimeZone: "Europe/Rome")?.description == text)
+    }
+
+    // MARK: Notes (schema 2)
+
+    /// Copied from CLAUDE.md on purpose, so a change to `LogFormat.notePattern` is caught.
+    static let referenceNotePattern = #"^- (\d{2}:\d{2}) (.*?) \[type:: note\](?: \[tz:: ([^\]]+)\])?$"#
+
+    @Test func notePatternMatchesReference() {
+        #expect(LogFormat.notePattern == Self.referenceNotePattern)
+    }
+
+    @Test func noteFormatAndRoundTrip() throws {
+        let (day, entry) = LogFormat.makeNote(
+            at: Self.date(2026, 10, 15, 14, 32, 50), timeZone: Self.rome,
+            text: "  Called the bank\nabout [the] mortgage #admin "
+        )
+        #expect(day == LogDay(year: 2026, month: 10, day: 15))
+        let line = LogFormat.format(entry, fileTimeZone: "Europe/Rome")
+        #expect(line == "- 14:32 Called the bank about (the) mortgage #admin [type:: note]")
+        #expect(line.range(of: Self.referenceNotePattern, options: .regularExpression) != nil)
+        #expect(!Self.matchesReference(line))
+        #expect(try #require(LogFormat.parse(line, fileTimeZone: "Europe/Rome")) == entry)
+    }
+
+    @Test func noteTzOnlyWhenDifferent() throws {
+        let (_, entry) = LogFormat.makeNote(
+            at: Self.date(2026, 10, 15, 14, 32), timeZone: Self.rome, text: "Landed"
+        )
+        let line = LogFormat.format(entry, fileTimeZone: "Asia/Tokyo")
+        #expect(line == "- 14:32 Landed [type:: note] [tz:: Europe/Rome]")
+        #expect(try #require(LogFormat.parse(line, fileTimeZone: "Asia/Tokyo")) == entry)
+    }
+
+    @Test func malformedNotesAreIgnored() {
+        for line in [
+            "- 14:32 [type:: note]",
+            "- 4:32 Landed [type:: note]",
+            "- 14:32-14:40 Landed [type:: note]",
+            "- 14:32 Landed [type:: note] [energy:: 3]",
+        ] {
+            #expect(LogFormat.parse(line, fileTimeZone: "Europe/Rome") == nil, "\(line)")
+        }
     }
 
     // MARK: Parsing
@@ -210,7 +237,7 @@ struct LogFormatTests {
 
     @Test func frontmatterIsExact() {
         let text = LogFormat.frontmatter(day: LogDay(year: 2026, month: 10, day: 15), timeZone: "Europe/Rome")
-        #expect(text == "---\ntype: pomodoro-log\ndate: 2026-10-15\ntz: Europe/Rome\nschema: 1\n---\n\n")
+        #expect(text == "---\ntype: pomodoro-log\ndate: 2026-10-15\ntz: Europe/Rome\nschema: 2\n---\n\n")
         #expect(LogFormat.frontmatterTimeZone(in: text) == "Europe/Rome")
     }
 

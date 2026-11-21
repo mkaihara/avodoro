@@ -10,6 +10,8 @@ enum NotificationText {
             return ("Focus session done", task.isEmpty ? "Time for a break." : task)
         case .break:
             return ("Break is over", "Ready to focus?")
+        case .note:
+            return ("Note logged", description) // notes never complete; here for exhaustiveness
         }
     }
 }

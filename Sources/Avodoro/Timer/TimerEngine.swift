@@ -96,7 +96,20 @@ final class TimerEngine {
     func select(type: SessionType) {
         guard phase == .idle else { return }
         selectedType = type
-        selectedMinutes = type == .focus ? lastFocusMinutes : configuration.defaultBreakMinutes
+        switch type {
+        case .focus: selectedMinutes = lastFocusMinutes
+        case .break: selectedMinutes = configuration.defaultBreakMinutes
+        case .note: break // no timer
+        }
+    }
+
+    /// The mode label's click: focus → break → log → focus. Log mode is only reached this way.
+    func cycleType() {
+        switch selectedType {
+        case .focus: select(type: .break)
+        case .break: select(type: .note)
+        case .note: select(type: .focus)
+        }
     }
 
     func select(minutes: Int) {
@@ -118,6 +131,10 @@ final class TimerEngine {
         case .finishing: commitFinishing(energy: nil)
         case .recovering: logRecovered()
         case .idle: break
+        }
+        if selectedType == .note {
+            writeNote()
+            return
         }
         selectsTaskTextOnNextFocus = false
         let now = clock.now
@@ -251,6 +268,16 @@ final class TimerEngine {
         changed()
     }
 
+    /// Log mode: writes the task text as a note at this moment and clears the field.
+    /// Nothing is written for empty text.
+    private func writeNote() {
+        guard !taskText.allSatisfy(\.isWhitespace) else { return }
+        let (day, entry) = LogFormat.makeNote(at: clock.now, timeZone: timeZone(), text: taskText)
+        log(day, entry)
+        taskText = ""
+        selectsTaskTextOnNextFocus = false
+    }
+
     private func write(day: LogDay, entry: LogEntry) {
         log(day, entry)
         suggestNext(after: entry)
@@ -270,6 +297,8 @@ final class TimerEngine {
             selectedMinutes = lastFocusMinutes
             taskText = lastFocusText
             selectsTaskTextOnNextFocus = !taskText.isEmpty
+        case .note:
+            break // notes are written by writeNote()
         }
     }
 

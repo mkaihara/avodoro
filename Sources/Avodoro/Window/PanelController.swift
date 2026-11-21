@@ -115,7 +115,8 @@ final class PanelController {
         let menu = NSMenu()
         switch engine.phase {
         case .idle, .recovering:
-            menu.addItem(ActionMenuItem("Start") { [engine] in engine.start() })
+            let title = engine.phase == .idle && engine.selectedType == .note ? "Log note" : "Start"
+            menu.addItem(ActionMenuItem(title) { [engine] in engine.start() })
         case .running:
             menu.addItem(ActionMenuItem("Pause") { [engine] in engine.pause() })
             menu.addItem(ActionMenuItem("Stop") { [engine] in engine.stop() })

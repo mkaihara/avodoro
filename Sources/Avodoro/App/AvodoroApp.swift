@@ -57,7 +57,7 @@ private struct MenuContent: View {
 
         switch engine.phase {
         case .idle, .finishing, .recovering:
-            Button("Start") { engine.start() }
+            Button(engine.phase == .idle && engine.selectedType == .note ? "Log note" : "Start") { engine.start() }
         case .running:
             Button("Pause") { engine.pause() }
             Button("Stop") { engine.stop() }

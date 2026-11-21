@@ -49,7 +49,11 @@ struct AvocadoView: View {
 
             if engine.phase == .idle {
                 Group {
-                    if needsLogFolder { chooseFolderPrompt } else { presetChips }
+                    if needsLogFolder {
+                        chooseFolderPrompt
+                    } else if engine.selectedType != .note { // Log mode has no timer
+                        presetChips
+                    }
                 }
                 .position(x: width * 0.5, y: height * 0.285)
             }
@@ -113,19 +117,31 @@ struct AvocadoView: View {
         engine.session?.type ?? engine.finishing?.entry.type ?? engine.selectedType
     }
 
+    private var modeName: String {
+        switch displayedType {
+        case .focus: "Focus"
+        case .break: "Break"
+        case .note: "Log"
+        }
+    }
+
     private var modeLabel: some View {
         Button {
-            engine.select(type: displayedType == .focus ? .break : .focus)
+            engine.cycleType()
         } label: {
-            Text(displayedType == .focus ? "Focus" : "Break")
+            Text(modeName)
                 .font(.rounded(12 * scale, .medium))
                 .padding(.horizontal, 6 * scale)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .allowsHitTesting(engine.phase == .idle) // not .disabled: dimming would hurt contrast
-        .accessibilityLabel(displayedType == .focus ? "Focus" : "Break")
-        .accessibilityHint(engine.phase == .idle ? "Switches between focus and break" : "")
+        .accessibilityLabel(modeName)
+        .accessibilityHint(engine.phase == .idle ? "Switches between focus, break and log" : "")
+    }
+
+    private var placeholder: String {
+        displayedType == .note ? "What happened?" : "What are you doing?"
     }
 
     private var chooseFolderPrompt: some View {
@@ -178,7 +194,7 @@ struct AvocadoView: View {
     @ViewBuilder private var taskField: some View {
         if isSnapshot {
             // ImageRenderer cannot draw the AppKit-backed TextField.
-            Text(engine.taskText.isEmpty ? "What are you doing?" : engine.taskText)
+            Text(engine.taskText.isEmpty ? placeholder : engine.taskText)
                 .font(.rounded(12 * scale))
                 .opacity(engine.taskText.isEmpty ? 0.6 : 1)
                 .multilineTextAlignment(.center)
@@ -193,7 +209,7 @@ struct AvocadoView: View {
                 .lineLimit(1...2)
                 .background(alignment: .center) {
                     if engine.taskText.isEmpty {
-                        Text("What are you doing?")
+                        Text(placeholder)
                             .font(.rounded(12 * scale))
                             .opacity(0.6)
                             .allowsHitTesting(false)

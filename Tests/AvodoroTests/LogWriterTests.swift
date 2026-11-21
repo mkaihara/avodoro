@@ -49,7 +49,7 @@ struct LogWriterTests {
             type: pomodoro-log
             date: 2026-10-15
             tz: Europe/Rome
-            schema: 1
+            schema: 2
             ---
 
             \(line("First"))

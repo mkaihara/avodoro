@@ -16,7 +16,7 @@ struct SnapshotTests {
     static let sizes: [(name: String, scale: CGFloat)] = [("small", 0.8), ("medium", 1), ("large", 1.25)]
 
     enum State: String, CaseIterable {
-        case idle, running0, running50, running90, paused, finishing, warning, warningReason, firstRun, sixPresets, recovering
+        case idle, running0, running50, running90, paused, finishing, warning, warningReason, firstRun, sixPresets, recovering, logMode, logModeText, longText
     }
 
     @Test(arguments: State.allCases)
@@ -48,6 +48,13 @@ struct SnapshotTests {
             warning = "Log folder not found. 2 sessions are waiting to be written."
         case .firstRun:
             warning = "No log folder chosen."
+        case .logMode:
+            engine.select(type: .note)
+        case .logModeText:
+            engine.select(type: .note)
+            engine.taskText = "Called the bank about the mortgage #admin"
+        case .longText:
+            engine.taskText = "Refactor the parser so it accepts both schema 1 and schema 2 files, then write the migration notes for the analysis tool"
         case .sixPresets:
             engine.select(minutes: 120)
         case .recovering:
