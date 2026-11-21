@@ -47,7 +47,8 @@ struct AvocadoView: View {
             modeLabel
                 .position(x: width * 0.5, y: height * 0.17)
 
-            if engine.phase == .idle {
+            // Chips stay visible while a session runs or is paused, but only react when idle.
+            if [.idle, .running, .paused].contains(engine.phase) {
                 Group {
                     if needsLogFolder {
                         chooseFolderPrompt
@@ -174,7 +175,7 @@ struct AvocadoView: View {
     }
 
     private func presetChip(_ minutes: Int) -> some View {
-        let selected = minutes == engine.selectedMinutes
+        let selected = minutes == (engine.session?.plannedMinutes ?? engine.selectedMinutes)
         return Button {
             engine.select(minutes: minutes)
         } label: {
@@ -187,6 +188,7 @@ struct AvocadoView: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .allowsHitTesting(engine.phase == .idle) // not .disabled: dimming would hurt contrast
         .accessibilityLabel("\(minutes) minutes")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
