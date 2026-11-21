@@ -10,7 +10,15 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
 
 ## Current status
 
-- Milestone: 8 (robustness) done. All eight milestones are built. 95 tests pass.
+- After M8: Log mode, long text and the app icon (2026-11-21).
+  - Log mode: a third mode, reached only by clicking the mode label (Focus → Break → Log → Focus). No presets, no timer; the pit shows "Log". Return or a click on the pit writes the task text as a note line (`[type:: note]`, schema 2) at the current minute and clears the field; empty text writes nothing. Menus say "Log note" instead of Start. Focus and break still alternate on their own and never go to Log mode. `SessionType.note` exists only for log entries; a `Session` is never a note.
+  - Long text: the 200 character cut is gone (schema 2). The field still shows 2 lines and scrolls.
+  - App icon: `AppIconView` (avocado on a cream rounded tile) rendered by `make icon` into `Sources/Avodoro/Assets.xcassets/AppIcon.appiconset` (the PNGs are committed).
+- To test by hand:
+  - Click the mode label three times: Focus, Break, Log. Type a note, press Return: a line `- HH:MM <text> [type:: note]` appears in today's file and the field clears.
+  - Paste a paragraph of several hundred characters into a focus task and finish the session: the full text is in the line.
+  - The icon shows in Finder (`open build/Build/Products/Debug`), in System Settings › Login Items and in notifications. Finder may cache the old blank icon; `touch` the app or log out and in.
+- Milestone: 8 (robustness) done. All eight milestones are built. 101 tests pass.
 - M8 works:
   - `SystemEvents` (`Support/`): `NSWorkspace.willSleepNotification` → pause; `com.apple.screenIsLocked` → pause if the setting is on; unlock is only logged. Never resumes.
   - Crash recovery: `SessionRecorder` saves `TimerEngine.snapshot(heartbeat:)` to `active-session.json` on every state change (`onStateChange`) and every 30 s while running; idle deletes the file. `RecoveryRecord` = session, finishing line, task text, heartbeat.
@@ -111,6 +119,7 @@ make gen        # xcodegen generate
 make build      # xcodebuild -scheme Avodoro -derivedDataPath build build
 make test       # xcodebuild -scheme Avodoro -derivedDataPath build test
 make snapshot   # renders AvocadoView in every state to snapshots/*.png
+make icon       # renders AppIconView into Sources/Avodoro/Assets.xcassets/AppIcon.appiconset
 make run        # build, then open build/Build/Products/Debug/Avodoro.app
 make clean
 ```
@@ -173,7 +182,7 @@ Architecture rule: views are thin. All behavior lives in `TimerEngine`, `LogForm
 
 ### Session types and states
 
-Two session types: `focus` and `break`.
+Two session types: `focus` and `break`. A third mode, Log, has no timer: it writes a note (see below).
 
 ```
 idle ──start──▶ running ──pause──▶ paused ──resume──▶ running
@@ -193,6 +202,12 @@ Rules:
 - After a focus session, suggest a break with the default break length. After a break, suggest focus with the last focus preset, and keep the previous task text in the field, selected, so typing replaces it.
 - I can edit the task text while the session runs. The logged description is the text at the moment the session finishes.
 - If the Mac sleeps during a running session, pause it. If the screen locks during a running session, pause it (setting, on by default). Use `NSWorkspace.willSleepNotification` and the distributed notifications `com.apple.screenIsLocked` and `com.apple.screenIsUnlocked`. The lock notifications are undocumented; if they are unreliable, tell me instead of building a workaround. Never resume automatically.
+
+### Log mode
+
+- Reached only by clicking the mode label repeatedly: Focus → Break → Log → Focus. Focus and break alternate after each session and never switch to Log by themselves.
+- No preset chips, no countdown, no ring. The pit shows "Log"; the placeholder is "What happened?".
+- Return or a click on the pit writes the task text as a note at the current minute and clears the field. Empty text writes nothing. The mode stays Log.
 
 ### Crash and quit recovery
 
@@ -223,7 +238,7 @@ Log folder details:
 
 Notifications: use `UNUserNotificationCenter` and ask for permission at the first session end, not at launch. If authorization fails (possible with ad hoc signing), fall back to sound and the completion animation and log the error with `os.Logger`. Never block on it.
 
-## The log format (schema 1)
+## The log format (schema 2)
 
 This is a contract with a future analysis tool. Treat it as a public API.
 
@@ -237,7 +252,7 @@ This is a contract with a future analysis tool. Treat it as a public API.
 type: pomodoro-log
 date: 2026-10-15
 tz: Europe/Rome
-schema: 1
+schema: 2
 ---
 
 ```
@@ -246,15 +261,18 @@ schema: 1
 
 ### Line
 
-One line per session, appended at the end of the file:
+One line per session or note, appended at the end of the file:
 
 ```
 - 09:02-09:27 Write blog post draft #writing [type:: focus] [planned:: 25] [actual:: 25] [status:: completed] [energy:: 4]
 - 09:27-09:32 Break [type:: break] [planned:: 5] [actual:: 5] [status:: completed]
 - 10:40-10:52 Refactor parser #code [type:: focus] [planned:: 20] [actual:: 9] [status:: stopped] [paused:: 3] [energy:: 2]
+- 11:05 Called the bank about the mortgage #admin [type:: note]
 ```
 
-Fields always appear in this order. The first four bracketed fields are required, the rest are optional.
+Note lines (schema 2) have one time, the description, `[type:: note]` and an optional `[tz:: ...]`. Nothing else.
+
+Fields of session lines always appear in this order. The first four bracketed fields are required, the rest are optional.
 
 - `HH:MM-HH:MM`: local start and end time, 24 hour clock, ASCII hyphen. An end earlier than the start means the session crossed midnight.
 - Description: the sanitized task text. Tags such as `#writing` stay inside the text, so Obsidian indexes them as normal tags.
@@ -274,18 +292,26 @@ Start and end are truncated to the minute and `actual` is rounded, so `end - sta
 
 - Trim, and collapse all whitespace including newlines into single spaces.
 - Replace `[` with `(` and `]` with `)`, so the text can never look like a field.
-- Maximum 200 characters. Cut at a word boundary and add `…`.
-- Empty focus description becomes `(untitled)`. Empty break description becomes `Break`.
+- No length limit (schema 2; schema 1 cut at 200 characters with `…`).
+- Empty focus description becomes `(untitled)`. Empty break description becomes `Break`. Empty notes are not written.
 
 ### Reference regex
 
-The parser in `LogFormat.swift`, and any future parser, must accept exactly this:
+The parser in `LogFormat.swift`, and any future parser, must accept exactly these. Sessions:
 
 ```
 ^- (\d{2}:\d{2})-(\d{2}:\d{2}) (.*?) \[type:: (focus|break)\] \[planned:: (\d+)\] \[actual:: (\d+)\] \[status:: (completed|stopped)\](?: \[paused:: (\d+)\])?(?: \[energy:: ([1-5])\])?(?: \[tz:: ([^\]]+)\])?$
 ```
 
-Lines that don't match are not sessions. I may write my own notes in these files. Ignore them.
+Notes (schema 2):
+
+```
+^- (\d{2}:\d{2}) (.*?) \[type:: note\](?: \[tz:: ([^\]]+)\])?$
+```
+
+Session lines are the same in schema 1 and 2. Files keep the `schema` they were created with, so a file that says `schema: 1` may also contain note lines and long descriptions written after the upgrade; parsers should accept both shapes in every file.
+
+Lines that match neither are not sessions or notes. I may write my own notes in these files. Ignore them.
 
 ### Writing rules
 

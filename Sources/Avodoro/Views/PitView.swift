@@ -79,6 +79,10 @@ struct PitView: View {
                     .foregroundStyle(Palette.textOnPit)
             }
             .offset(y: 7 * scale) // keeps the digits where they sit while running
+        case .idle where engine.selectedType == .note:
+            Text("Log")
+                .font(.rounded(22 * scale, .semibold))
+                .foregroundStyle(Palette.textOnPit)
         case .idle, .running, .recovering:
             countdown
         }
@@ -103,6 +107,8 @@ struct PitView: View {
 
     private var accessibilityLabel: String {
         switch engine.phase {
+        case .idle where engine.selectedType == .note:
+            return "Log note"
         case .idle, .recovering:
             let kind = engine.selectedType == .focus ? "focus" : "break"
             return "Start \(engine.selectedMinutes) minute \(kind) session"

@@ -3,6 +3,8 @@ import Foundation
 enum SessionType: String, Codable, Sendable, CaseIterable {
     case focus
     case `break`
+    /// A point-in-time entry from Log mode (schema 2). Never a timed session.
+    case note
 }
 
 enum SessionStatus: String, Codable, Sendable, CaseIterable {
@@ -74,7 +76,8 @@ struct LogDay: Codable, Hashable, Sendable {
     }
 }
 
-/// The content of one log line (schema 1).
+/// The content of one log line. A note uses only `start`, `description`, `type` and `timeZone`
+/// (`end` = `start`, `planned` = `actual` = 0, `status` = completed).
 struct LogEntry: Codable, Hashable, Sendable {
     var start: LogTime
     var end: LogTime
@@ -91,15 +94,21 @@ struct LogEntry: Codable, Hashable, Sendable {
     var timeZone: String
 }
 
-/// Schema 1 of the log. A contract with the future analysis tool: see CLAUDE.md before changing.
+/// Schema 2 of the log. A contract with the future analysis tool: see CLAUDE.md before changing.
+///
+/// Schema 2 adds note lines and drops the 200 character cut. Session lines are unchanged from
+/// schema 1, so schema 1 files parse the same way.
 enum LogFormat {
-    static let schema = 1
-    static let maxDescriptionLength = 200
+    static let schema = 2
 
-    /// The reference regex from CLAUDE.md, verbatim.
+    /// The reference session regex from CLAUDE.md, verbatim.
     static let pattern = #"^- (\d{2}:\d{2})-(\d{2}:\d{2}) (.*?) \[type:: (focus|break)\] \[planned:: (\d+)\] \[actual:: (\d+)\] \[status:: (completed|stopped)\](?: \[paused:: (\d+)\])?(?: \[energy:: ([1-5])\])?(?: \[tz:: ([^\]]+)\])?$"#
 
+    /// The reference note regex from CLAUDE.md (schema 2), verbatim.
+    static let notePattern = #"^- (\d{2}:\d{2}) (.*?) \[type:: note\](?: \[tz:: ([^\]]+)\])?$"#
+
     private static let regex = try! NSRegularExpression(pattern: pattern)
+    private static let noteRegex = try! NSRegularExpression(pattern: notePattern)
 
     // MARK: Building
 
@@ -137,30 +146,41 @@ enum LogFormat {
         return (day, entry)
     }
 
+    /// A Log mode note at `date`.
+    static func makeNote(at date: Date, timeZone: TimeZone, text: String) -> (day: LogDay, entry: LogEntry) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        let time = LogTime(hour: parts.hour!, minute: parts.minute!)
+        let entry = LogEntry(
+            start: time,
+            end: time,
+            description: sanitize(text, type: .note),
+            type: .note,
+            planned: 0,
+            actual: 0,
+            status: .completed,
+            paused: nil,
+            energy: nil,
+            timeZone: timeZone.identifier
+        )
+        return (LogDay(date: date, timeZone: timeZone), entry)
+    }
+
     static func roundedMinutes(_ seconds: TimeInterval) -> Int {
         Int((max(0, seconds) / 60).rounded())
     }
 
+    /// One line, no brackets, no length limit (schema 2).
     static func sanitize(_ text: String, type: SessionType) -> String {
-        var result = text
+        let result = text
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
             .replacingOccurrences(of: "[", with: "(")
             .replacingOccurrences(of: "]", with: ")")
 
-        if result.count > maxDescriptionLength {
-            let limit = maxDescriptionLength - 1 // room for the ellipsis
-            let head = result.prefix(limit)
-            let nextIsSpace = result[head.endIndex] == " "
-            var cut = Substring(head)
-            if !nextIsSpace, let lastSpace = head.lastIndex(of: " ") {
-                cut = head[..<lastSpace]
-            }
-            result = cut.trimmingCharacters(in: .whitespaces) + "…"
-        }
-
         if result.isEmpty {
-            return type == .focus ? "(untitled)" : "Break"
+            return type == .break ? "Break" : "(untitled)"
         }
         return result
     }
@@ -168,6 +188,13 @@ enum LogFormat {
     // MARK: Formatting
 
     static func format(_ entry: LogEntry, fileTimeZone: String?) -> String {
+        if entry.type == .note {
+            var line = "- \(entry.start.string) \(entry.description) [type:: note]"
+            if entry.timeZone != fileTimeZone {
+                line += " [tz:: \(entry.timeZone)]"
+            }
+            return line
+        }
         var line = "- \(entry.start.string)-\(entry.end.string) \(entry.description)"
         line += " [type:: \(entry.type.rawValue)]"
         line += " [planned:: \(entry.planned)]"
@@ -200,10 +227,12 @@ enum LogFormat {
 
     // MARK: Parsing
 
-    /// Returns nil for any line that isn't a session, such as notes written by hand.
+    /// Returns nil for any line that isn't a session or a note, such as text written by hand.
     static func parse(_ line: String, fileTimeZone: String?) -> LogEntry? {
         let range = NSRange(line.startIndex..., in: line)
-        guard let match = regex.firstMatch(in: line, range: range) else { return nil }
+        guard let match = regex.firstMatch(in: line, range: range) else {
+            return parseNote(line, fileTimeZone: fileTimeZone)
+        }
 
         func group(_ index: Int) -> String? {
             let nsRange = match.range(at: index)
@@ -233,6 +262,25 @@ enum LogFormat {
             energy: group(9).flatMap { Int($0) },
             timeZone: timeZone
         )
+    }
+
+    private static func parseNote(_ line: String, fileTimeZone: String?) -> LogEntry? {
+        let range = NSRange(line.startIndex..., in: line)
+        guard let match = noteRegex.firstMatch(in: line, range: range) else { return nil }
+
+        func group(_ index: Int) -> String? {
+            let nsRange = match.range(at: index)
+            guard nsRange.location != NSNotFound, let range = Range(nsRange, in: line) else { return nil }
+            return String(line[range])
+        }
+
+        guard let time = group(1).flatMap(LogTime.init),
+              let description = group(2),
+              let timeZone = group(3) ?? fileTimeZone
+        else { return nil }
+
+        return LogEntry(start: time, end: time, description: description, type: .note, planned: 0,
+                        actual: 0, status: .completed, paused: nil, energy: nil, timeZone: timeZone)
     }
 
     /// The `tz` value from a file's leading frontmatter block, if any.

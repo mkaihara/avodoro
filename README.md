@@ -34,20 +34,23 @@ One file per day, `<log folder>/YYYY-MM-DD.md`, starting with frontmatter:
 type: pomodoro-log
 date: 2026-10-15
 tz: Europe/Rome
-schema: 1
+schema: 2
 ---
 
 - 09:02-09:27 Write blog post draft #writing [type:: focus] [planned:: 25] [actual:: 25] [status:: completed] [energy:: 4]
 - 09:27-09:32 Break [type:: break] [planned:: 5] [actual:: 5] [status:: completed]
 - 10:40-10:52 Refactor parser #code [type:: focus] [planned:: 20] [actual:: 9] [status:: stopped] [paused:: 3] [energy:: 2]
+- 11:05 Called the bank about the mortgage #admin [type:: note]
 ```
+
+- Click the mode label (Focus → Break → Log) to reach Log mode. There's no timer there: type what happened and press Return or click the pit, and it is written as a note at the current minute.
 
 - The fields use [Dataview](https://github.com/blacksmithgu/obsidian-dataview) inline syntax, so you can query them in Obsidian. Dataview is optional.
 - Tags in the task text stay normal Obsidian tags.
 - Lines are only ever appended; anything you write by hand in these files is left alone.
 - If the folder isn't reachable, lines wait in a queue, a red dot appears on the avocado, and they're written later. A line is never dropped silently.
 
-The full format, including the reference regex for parsers, is in the "The log format (schema 1)" section of [CLAUDE.md](CLAUDE.md).
+The full format, including the reference regex for parsers, is in the "The log format (schema 2)" section of [CLAUDE.md](CLAUDE.md).
 
 ## Requirements
 

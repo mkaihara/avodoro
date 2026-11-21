@@ -77,6 +77,49 @@ final class TimerEngineTests {
         engine.start()
     }
 
+    // MARK: Log mode
+
+    @Test func modeLabelCyclesThroughLog() {
+        #expect(engine.selectedType == .focus)
+        engine.cycleType()
+        #expect(engine.selectedType == .break)
+        engine.cycleType()
+        #expect(engine.selectedType == .note)
+        engine.cycleType()
+        #expect(engine.selectedType == .focus)
+    }
+
+    @Test func logModeWritesNoteWithoutTimer() {
+        engine.select(type: .note)
+        engine.taskText = "Called the bank #admin"
+        clock.advance(by: 32 * 60 + 40)
+        engine.start()
+        #expect(engine.phase == .idle)
+        #expect(engine.selectedType == .note)
+        #expect(engine.taskText == "")
+        #expect(clock.pendingCount == 0)
+        #expect(lines.count == 1)
+        #expect(LogFormat.format(lines[0].entry, fileTimeZone: "Europe/Rome") == "- 09:32 Called the bank #admin [type:: note]")
+    }
+
+    @Test func logModeIgnoresEmptyText() {
+        engine.select(type: .note)
+        engine.taskText = "  \n "
+        engine.start()
+        #expect(lines.isEmpty)
+        #expect(engine.phase == .idle)
+    }
+
+    @Test func breakAfterFocusNeverEntersLogMode() {
+        startFocus(5)
+        clock.advance(by: minutes(5))
+        engine.skipEnergy()
+        #expect(engine.selectedType == .break)
+        engine.start()
+        clock.advance(by: minutes(5))
+        #expect(engine.selectedType == .focus)
+    }
+
     // MARK: Completion
 
     @Test func startToCompletion() {
