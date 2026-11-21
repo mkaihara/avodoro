@@ -14,7 +14,9 @@ This is a personal tool for one user on one Mac. It will not be distributed. "Av
   - Log mode: a third mode, reached only by clicking the mode label (Focus → Break → Log → Focus). No presets, no timer; the pit shows "Log". Return or a click on the pit writes the task text as a note line (`[type:: note]`, schema 2) at the current minute and clears the field; empty text writes nothing. Menus say "Log note" instead of Start. Focus and break still alternate on their own and never go to Log mode. `SessionType.note` exists only for log entries; a `Session` is never a note.
   - Long text: the 200 character cut is gone (schema 2). The field still shows 2 lines and scrolls.
   - App icon: `AppIconView` (avocado on a cream rounded tile) rendered by `make icon` into `Sources/Avodoro/Assets.xcassets/AppIcon.appiconset` (the PNGs are committed).
+  - Preset chips stay visible while a focus or break session runs or is paused, with the session's length filled; they only react to clicks when idle (user decision 2026-11-21; before, they were idle only).
 - To test by hand:
+  - Start a 10 min focus session: the chips stay, 10 is filled, clicking them does nothing. Same while paused. They disappear during the energy question.
   - Click the mode label three times: Focus, Break, Log. Type a note, press Return: a line `- HH:MM <text> [type:: note]` appears in today's file and the field clears.
   - Paste a paragraph of several hundred characters into a focus task and finish the session: the full text is in the line.
   - The icon shows in Finder (`open build/Build/Products/Debug`), in System Settings › Login Items and in notifications. Finder may cache the old blank icon; `touch` the app or log out and in.
@@ -375,7 +377,7 @@ Bands in normalized y, everything center aligned:
 
 ```
 0.12 to 0.22   mode label "Focus" or "Break" (click toggles, idle only)
-0.24 to 0.33   preset chips 5 10 15 20 (idle only, selected chip filled)
+0.24 to 0.33   preset chips 5 10 15 20 (selected chip filled; also shown, not clickable, while running or paused)
 0.36 to 0.50   task field, 2 lines max, placeholder "What are you doing?"
 0.50 to 0.90   pit with countdown and progress ring
 ```
